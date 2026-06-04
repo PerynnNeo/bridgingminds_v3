@@ -1,0 +1,18 @@
+{
+  "name": "BridgingMinds",
+  "short_name": "BridgingMinds",
+  "description": "AI speech confidence coach. Practise speaking, presentations, and pronunciation.",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#fbfaf7",
+  "theme_color": "#3f9268",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

@@ -1,0 +1,40 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    @apply bg-cream text-charcoal antialiased font-sans;
+    /* Use the full mobile viewport and avoid rubber-band scroll glitches */
+    min-height: 100dvh;
+  }
+
+  /* Comfortable tap targets on mobile */
+  button,
+  [role='button'] {
+    touch-action: manipulation;
+  }
+
+  /* Respect users who prefer reduced motion */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.001ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.001ms !important;
+    }
+  }
+}
+
+@layer components {
+  /* Safe-area-aware bottom padding so content clears the fixed bottom nav + home indicator */
+  .pb-bottom-nav {
+    padding-bottom: calc(5rem + env(safe-area-inset-bottom));
+  }
+}

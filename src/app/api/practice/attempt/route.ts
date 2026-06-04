@@ -1,0 +1,121 @@
+import { randomUUID } from 'crypto';
+import { NextResponse } from 'next/server';
+import { createClient } from '@/lib/supabase/server';
+import { transcribeAudio, computeMetrics } from '@/lib/ai/transcribe';
+import { generateAttemptFeedback } from '@/lib/ai/feedback';
+import { updateDailyMetrics } from '@/lib/metrics/dashboard';
+import { USAGE_LIMITS, OVER_LIMIT_MESSAGE } from '@/config/limits';
+
+export const runtime = 'nodejs';
+export const maxDuration = 60;
+
+export async function POST(req: Request) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return NextResponse.json({ error: 'You are not signed in.' }, { status: 401 });
+
+  let form: FormData;
+  try {
+    form = await req.formData();
+  } catch {
+    return NextResponse.json({ error: 'Invalid upload.' }, { status: 400 });
+  }
+
+  const audio = form.get('audio');
+  const text = String(form.get('text') ?? '').trim();
+  const targetSkill = String(form.get('target_skill') ?? '').trim() || undefined;
+  const rawItemId = form.get('item_id');
+  if (!(audio instanceof File) || !text) {
+    return NextResponse.json({ error: 'A recording is required.' }, { status: 400 });
+  }
+
+  // Usage limit (spec §9.2).
+  const today = new Date().toISOString().slice(0, 10);
+  const { count } = await supabase
+    .from('practice_attempts')
+    .select('*', { count: 'exact', head: true })
+    .eq('user_id', user.id)
+    .gte('created_at', `${today}T00:00:00.000Z`);
+  if ((count ?? 0) >= USAGE_LIMITS.practiceAttemptsPerDay) {
+    return NextResponse.json({ error: OVER_LIMIT_MESSAGE }, { status: 429 });
+  }
+
+  // Link a personalised DB item when one was provided (RLS verifies ownership).
+  let practiceItemId: string | null = null;
+  if (rawItemId) {
+    const { data: item } = await supabase
+      .from('practice_items')
+      .select('id')
+      .eq('id', String(rawItemId))
+      .maybeSingle();
+    practiceItemId = item?.id ?? null;
+  }
+
+  try {
+    const buf = Buffer.from(await audio.arrayBuffer());
+    const path = `${user.id}/practice/${randomUUID()}.webm`;
+    await supabase.storage
+      .from('recordings')
+      .upload(path, buf, { contentType: audio.type || 'audio/webm', upsert: true })
+      .then(
+        () => {},
+        () => {},
+      );
+
+    const transcript = await transcribeAudio(buf);
+    const metrics = computeMetrics(transcript);
+    const feedback = await generateAttemptFeedback({
+      targetText: text,
+      transcript: transcript.text,
+      metrics,
+      fillerWordCount: transcript.fillerWordCount,
+      targetSkill,
+    });
+
+    // Did they improve vs their last attempt? (spec: post-recording feedback)
+    const { data: prevRows } = await supabase
+      .from('practice_attempts')
+      .select('clarity_score, pacing_score, pronunciation_score')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+      .limit(1);
+    const prev = prevRows?.[0];
+    let improved: boolean | null = null;
+    if (
+      prev &&
+      prev.clarity_score != null &&
+      prev.pacing_score != null &&
+      prev.pronunciation_score != null
+    ) {
+      const prevAvg = (prev.clarity_score + prev.pacing_score + prev.pronunciation_score) / 3;
+      const curAvg = (feedback.clarityScore + feedback.pacingScore + feedback.pronunciationScore) / 3;
+      improved = curAvg > prevAvg + 1;
+    }
+
+    await supabase.from('practice_attempts').insert({
+      user_id: user.id,
+      practice_item_id: practiceItemId,
+      audio_path: path,
+      transcript: transcript.text,
+      clarity_score: feedback.clarityScore,
+      pacing_score: feedback.pacingScore,
+      pronunciation_score: feedback.pronunciationScore,
+      filler_word_count: transcript.fillerWordCount,
+      feedback: feedback.feedback,
+    });
+
+    // Reflect the new attempt on the dashboard (spec P8 / D7).
+    await updateDailyMetrics(supabase, user.id);
+
+    return NextResponse.json({ ...feedback, improved });
+  } catch (err) {
+    console.error('[practice/attempt]', err);
+    const message = err instanceof Error ? err.message : 'Scoring failed.';
+    return NextResponse.json(
+      { error: `We couldn't score that attempt. ${message}` },
+      { status: 500 },
+    );
+  }
+}
