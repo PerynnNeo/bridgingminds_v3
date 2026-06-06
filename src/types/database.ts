@@ -64,6 +64,9 @@ export interface Database {
           reading_transcript: string | null;
           rapid_answer_transcript: string | null;
           analysis_status: AnalysisStatus;
+          camera_enabled: boolean;
+          visual_metrics: Json | null;
+          combined_feedback: Json | null;
           created_at: string;
         };
         Insert: {
@@ -75,6 +78,9 @@ export interface Database {
           reading_transcript?: string | null;
           rapid_answer_transcript?: string | null;
           analysis_status?: AnalysisStatus;
+          camera_enabled?: boolean;
+          visual_metrics?: Json | null;
+          combined_feedback?: Json | null;
           created_at?: string;
         };
         Update: Partial<Database['public']['Tables']['onboarding_sessions']['Insert']>;
@@ -177,6 +183,9 @@ export interface Database {
           pronunciation_score: number | null;
           filler_word_count: number | null;
           feedback: string | null;
+          camera_enabled: boolean;
+          visual_metrics: Json | null;
+          combined_feedback: Json | null;
           created_at: string;
         };
         Insert: {
@@ -191,6 +200,9 @@ export interface Database {
           pronunciation_score?: number | null;
           filler_word_count?: number | null;
           feedback?: string | null;
+          camera_enabled?: boolean;
+          visual_metrics?: Json | null;
+          combined_feedback?: Json | null;
           created_at?: string;
         };
         Update: Partial<Database['public']['Tables']['practice_attempts']['Insert']>;
@@ -211,6 +223,9 @@ export interface Database {
           pacing_score: number | null;
           confidence_score: number | null;
           feedback: string | null;
+          camera_enabled: boolean;
+          visual_metrics: Json | null;
+          combined_feedback: Json | null;
           created_at: string;
         };
         Insert: {
@@ -227,9 +242,50 @@ export interface Database {
           pacing_score?: number | null;
           confidence_score?: number | null;
           feedback?: string | null;
+          camera_enabled?: boolean;
+          visual_metrics?: Json | null;
+          combined_feedback?: Json | null;
           created_at?: string;
         };
         Update: Partial<Database['public']['Tables']['game_sessions']['Insert']>;
+        Relationships: [];
+      };
+      visual_analysis_results: {
+        Row: {
+          id: string;
+          user_id: string;
+          activity_type: string;
+          activity_id: string | null;
+          eye_contact_ratio: number | null;
+          face_visibility_ratio: number | null;
+          framing_score: number | null;
+          head_stability_score: number | null;
+          expression_variation_score: number | null;
+          mouth_visibility_score: number | null;
+          lighting_quality_score: number | null;
+          gesture_balance_score: number | null;
+          delivery_presence_score: number | null;
+          feedback_summary: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          activity_type: string;
+          activity_id?: string | null;
+          eye_contact_ratio?: number | null;
+          face_visibility_ratio?: number | null;
+          framing_score?: number | null;
+          head_stability_score?: number | null;
+          expression_variation_score?: number | null;
+          mouth_visibility_score?: number | null;
+          lighting_quality_score?: number | null;
+          gesture_balance_score?: number | null;
+          delivery_presence_score?: number | null;
+          feedback_summary?: string | null;
+          created_at?: string;
+        };
+        Update: Partial<Database['public']['Tables']['visual_analysis_results']['Insert']>;
         Relationships: [];
       };
       daily_questions: {
@@ -313,3 +369,4 @@ export type PracticeAttempt = Database['public']['Tables']['practice_attempts'][
 export type GameSession = Database['public']['Tables']['game_sessions']['Row'];
 export type DailyQuestion = Database['public']['Tables']['daily_questions']['Row'];
 export type ProgressMetric = Database['public']['Tables']['progress_metrics']['Row'];
+export type VisualAnalysisResult = Database['public']['Tables']['visual_analysis_results']['Row'];
