@@ -5,7 +5,7 @@ import { Volume2, Lightbulb, RotateCcw, ArrowRight, Shuffle, Eye } from 'lucide-
 import type { GameFeedback, FriendDebateResult } from '@/lib/ai/game';
 import { DEBATE_TOPICS } from '@/lib/games/topics';
 import { useCameraCapture } from '@/lib/hooks/use-camera-capture';
-import { speak } from '@/lib/tts';
+import { playSpeech } from '@/lib/tts';
 import { Card, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { RecordButton } from '@/components/ui/record-button';
@@ -167,7 +167,7 @@ export function DebateGame({
       setCounterpoint(data.counterpoint);
       cap.reset();
       setStep('counterpoint');
-      speak(data.counterpoint);
+      void playSpeech(data.counterpoint);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Something went wrong.');
       setStep('error');
@@ -374,7 +374,7 @@ export function DebateGame({
             <CardTitle className="text-primary-700">Opponent</CardTitle>
             <button
               type="button"
-              onClick={() => speak(counterpoint)}
+              onClick={() => void playSpeech(counterpoint)}
               className="flex items-center gap-1 text-sm font-medium text-primary-600"
             >
               <Volume2 className="h-4 w-4" />

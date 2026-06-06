@@ -33,6 +33,41 @@ export function speak(text: string, opts: SpeakOptions = {}): void {
   window.speechSynthesis.speak(utterance);
 }
 
+let currentAudio: HTMLAudioElement | null = null;
+
 export function stopSpeaking(): void {
   if (isTTSSupported()) window.speechSynthesis.cancel();
+  if (currentAudio) {
+    currentAudio.pause();
+    currentAudio = null;
+  }
+}
+
+/**
+ * Speak with the premium voice (ElevenLabs via /api/tts), falling back to the
+ * browser voice if it is not configured or the request fails. Fire-and-forget:
+ * the caller need not await it.
+ */
+export async function playSpeech(text: string, opts: SpeakOptions = {}): Promise<void> {
+  stopSpeaking();
+  try {
+    const res = await fetch('/api/tts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text }),
+    });
+    if (!res.ok) throw new Error('tts unavailable');
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const audio = new Audio(url);
+    currentAudio = audio;
+    audio.onended = () => {
+      URL.revokeObjectURL(url);
+      if (currentAudio === audio) currentAudio = null;
+      opts.onEnd?.();
+    };
+    await audio.play();
+  } catch {
+    speak(text, opts); // browser-voice fallback
+  }
 }

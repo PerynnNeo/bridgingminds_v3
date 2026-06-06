@@ -71,13 +71,15 @@ The full set (see `.env.example`):
 ```
 ANTHROPIC_API_KEY=          # Claude
 ASSEMBLYAI_API_KEY=         # speech to text
+ELEVENLABS_API_KEY=         # optional: realistic debate-opponent voice (falls back to browser voice)
+ELEVENLABS_VOICE_ID=        # optional: voice id (defaults to a confident male voice)
 NEXT_PUBLIC_SUPABASE_URL=   # Supabase project URL
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
 SUPABASE_SERVICE_ROLE_KEY=  # server only
 NEXT_PUBLIC_SITE_URL=       # https://your-domain  (used for SEO, Open Graph, sitemap)
 ```
 
-`NEXT_PUBLIC_*` values are exposed to the browser by design. Everything else is server only.
+`NEXT_PUBLIC_*` values are exposed to the browser by design. Everything else is server only. ElevenLabs is optional: without `ELEVENLABS_API_KEY` the debate opponent uses the free browser voice.
 
 ---
 
