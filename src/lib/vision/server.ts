@@ -39,6 +39,24 @@ export function hasEnoughVisualData(metrics: VisualMetrics): boolean {
   return metrics.sampleCount >= 5 && metrics.faceVisibilityRatio >= 0.25;
 }
 
+/** Average several clips' metrics into one baseline (sampleCount is summed). */
+export function averageMetrics(list: VisualMetrics[]): VisualMetrics | null {
+  if (list.length === 0) return null;
+  const mean = (key: keyof VisualMetrics) =>
+    list.reduce((sum, m) => sum + (m[key] as number), 0) / list.length;
+  return {
+    eyeContactRatio: mean('eyeContactRatio'),
+    faceVisibilityRatio: mean('faceVisibilityRatio'),
+    framingScore: mean('framingScore'),
+    headStabilityScore: mean('headStabilityScore'),
+    expressionVariationScore: mean('expressionVariationScore'),
+    mouthVisibilityScore: mean('mouthVisibilityScore'),
+    lightingQualityScore: mean('lightingQualityScore'),
+    deliveryPresenceScore: mean('deliveryPresenceScore'),
+    sampleCount: list.reduce((sum, m) => sum + m.sampleCount, 0),
+  };
+}
+
 /** Persist one clip's visual metrics for dashboard aggregation. Best-effort, never throws. */
 export async function saveVisualAnalysis(
   supabase: Client,

@@ -5,6 +5,15 @@ import { transcribeAudio, computeMetrics } from '@/lib/ai/transcribe';
 import { generateOnboardingAnalysis } from '@/lib/ai/analyze';
 import { updateDailyMetrics } from '@/lib/metrics/dashboard';
 import { READING_PASSAGE } from '@/lib/onboarding/content';
+import {
+  parseVisualMetrics,
+  averageMetrics,
+  hasEnoughVisualData,
+  saveVisualAnalysis,
+} from '@/lib/vision/server';
+import { generateVisualBaseline } from '@/lib/ai/visual';
+import type { VisualMetrics } from '@/lib/vision/types';
+import type { Json } from '@/types/database';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -29,6 +38,9 @@ export async function POST(req: Request) {
   const rapid = form.get('rapid');
   const rapidPrompt = String(form.get('rapid_prompt') ?? '');
   const readingText = String(form.get('reading_text') ?? READING_PASSAGE);
+  const cameraEnabled = String(form.get('camera_enabled') ?? '') === 'true';
+  const readingVisual = parseVisualMetrics(form.get('reading_visual'));
+  const rapidVisual = parseVisualMetrics(form.get('rapid_visual'));
 
   if (!(reading instanceof File) || !(rapid instanceof File)) {
     return NextResponse.json({ error: 'Both recordings are required.' }, { status: 400 });
@@ -73,15 +85,39 @@ export async function POST(req: Request) {
       fillerWords: { reading: readingT.fillerWords, rapid: rapidT.fillerWords },
     });
 
+    // Visual delivery baseline (optional, only when the camera was used).
+    const clips = [readingVisual, rapidVisual].filter((m): m is VisualMetrics => m !== null);
+    const baseline = cameraEnabled ? averageMetrics(clips) : null;
+    let visualSummary: string | null = null;
+    let visualResponse: { summary: string; metrics: VisualMetrics } | null = null;
+    if (baseline && hasEnoughVisualData(baseline)) {
+      try {
+        const vb = await generateVisualBaseline({
+          metrics: baseline,
+          speechSummary: profile.generatedSummary,
+        });
+        visualSummary = vb.summary;
+        visualResponse = { summary: vb.summary, metrics: baseline };
+      } catch {
+        // Visual baseline is a bonus, never fail onboarding over it.
+      }
+    }
+
     // Persist everything.
-    await supabase.from('onboarding_sessions').insert({
-      user_id: user.id,
-      reading_audio_path: readingPath,
-      rapid_answer_audio_path: rapidPath,
-      reading_transcript: readingT.text,
-      rapid_answer_transcript: rapidT.text,
-      analysis_status: 'completed',
-    });
+    const { data: obSession } = await supabase
+      .from('onboarding_sessions')
+      .insert({
+        user_id: user.id,
+        reading_audio_path: readingPath,
+        rapid_answer_audio_path: rapidPath,
+        reading_transcript: readingT.text,
+        rapid_answer_transcript: rapidT.text,
+        analysis_status: 'completed',
+        camera_enabled: cameraEnabled,
+        visual_metrics: baseline ? (baseline as unknown as Json) : null,
+      })
+      .select('id')
+      .single();
 
     await supabase.from('speech_profiles').insert({
       user_id: user.id,
@@ -95,6 +131,8 @@ export async function POST(req: Request) {
       strengths: profile.strengths,
       focus_areas: profile.focusAreas,
       generated_summary: profile.generatedSummary,
+      visual_metrics: baseline ? (baseline as unknown as Json) : null,
+      visual_summary: visualSummary,
     });
 
     const { data: planRow } = await supabase
@@ -128,7 +166,26 @@ export async function POST(req: Request) {
     // Seed the first progress-metrics row so the dashboard has a baseline.
     await updateDailyMetrics(supabase, user.id);
 
-    return NextResponse.json({ profile, plan });
+    // Record per-clip visual metrics for dashboard history (best-effort).
+    if (cameraEnabled) {
+      const activityId = obSession?.id ?? null;
+      if (readingVisual)
+        await saveVisualAnalysis(supabase, {
+          userId: user.id,
+          activityType: 'onboarding',
+          activityId,
+          metrics: readingVisual,
+        });
+      if (rapidVisual)
+        await saveVisualAnalysis(supabase, {
+          userId: user.id,
+          activityType: 'onboarding',
+          activityId,
+          metrics: rapidVisual,
+        });
+    }
+
+    return NextResponse.json({ profile, plan, visual: visualResponse });
   } catch (err) {
     console.error('[onboarding/analyze]', err);
     // Record the failed attempt (best-effort) so it's visible in the DB.

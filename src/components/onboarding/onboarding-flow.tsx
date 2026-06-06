@@ -2,9 +2,11 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Mic, ArrowRight } from 'lucide-react';
+import { Mic, Video, ArrowRight } from 'lucide-react';
 import type { OnboardingAnalysis } from '@/lib/ai/types';
-import { useRecorder } from '@/lib/hooks/use-recorder';
+import type { VisualMetrics } from '@/lib/vision/types';
+import { useCameraCapture, type CameraCapture } from '@/lib/hooks/use-camera-capture';
+import { updateConsent } from '@/lib/actions/profile';
 import {
   READING_PASSAGE,
   RAPID_QUESTIONS,
@@ -16,9 +18,17 @@ import { Button } from '@/components/ui/button';
 import { Card, CardTitle } from '@/components/ui/card';
 import { RecordButton } from '@/components/ui/record-button';
 import { LoadingState, ErrorState } from '@/components/ui/states';
+import { CameraStage } from '@/components/vision/camera-stage';
+import { CameraSetup } from '@/components/vision/camera-setup';
 import { ProfileResultView } from '@/components/onboarding/profile-result-view';
 
-type Step = 'intro' | 'reading' | 'rapid' | 'analyzing' | 'result' | 'error';
+type Step = 'intro' | 'setup' | 'reading' | 'rapid' | 'analyzing' | 'result' | 'error';
+type VisualBaseline = { summary: string; metrics: VisualMetrics } | null;
+type Result = {
+  profile: OnboardingAnalysis['profile'];
+  plan: OnboardingAnalysis['plan'];
+  visual: VisualBaseline;
+};
 
 function formatTime(seconds: number): string {
   const m = Math.floor(seconds / 60);
@@ -35,6 +45,8 @@ function RecordStep({
   minSeconds,
   thinkingSeconds = 0,
   submitLabel,
+  capture,
+  showCamera,
   onSubmit,
 }: {
   title: string;
@@ -43,9 +55,10 @@ function RecordStep({
   minSeconds: number;
   thinkingSeconds?: number;
   submitLabel: string;
-  onSubmit: (blob: Blob) => void;
+  capture: CameraCapture;
+  showCamera: boolean;
+  onSubmit: (blob: Blob, metrics: VisualMetrics | null) => void;
 }) {
-  const rec = useRecorder();
   const [prepLeft, setPrepLeft] = useState(thinkingSeconds);
 
   useEffect(() => {
@@ -64,8 +77,8 @@ function RecordStep({
   }, [thinkingSeconds]);
 
   const preparing = thinkingSeconds > 0 && prepLeft > 0;
-  const recorded = rec.audioBlob !== null && !rec.isRecording;
-  const longEnough = rec.durationSec >= minSeconds;
+  const recorded = capture.audioBlob !== null && !capture.isRecording;
+  const longEnough = capture.durationSec >= minSeconds;
 
   return (
     <div className="space-y-5">
@@ -76,6 +89,8 @@ function RecordStep({
 
       {card}
 
+      {showCamera && <CameraStage capture={capture} showReadiness={!capture.isRecording} className="aspect-[4/3] w-full" />}
+
       {preparing ? (
         <div className="flex flex-col items-center gap-2 py-6">
           <span className="text-sm text-charcoal/60">Get ready…</span>
@@ -85,22 +100,20 @@ function RecordStep({
       ) : (
         <div className="flex flex-col items-center gap-3 py-2">
           <RecordButton
-            isRecording={rec.isRecording}
-            onClick={() => (rec.isRecording ? rec.stop() : rec.start())}
+            isRecording={capture.isRecording}
+            onClick={() => (capture.isRecording ? capture.stop() : capture.start())}
           />
           <span className="text-sm font-medium text-charcoal/70">
-            {rec.isRecording
+            {capture.isRecording
               ? 'Recording… tap to stop'
               : recorded
                 ? 'Got it! Tap to re-record'
                 : 'Tap to record'}
           </span>
-          {(rec.isRecording || recorded) && (
-            <span className="text-xs tabular-nums text-charcoal/45">
-              {formatTime(rec.durationSec)}
-            </span>
+          {(capture.isRecording || recorded) && (
+            <span className="text-xs tabular-nums text-charcoal/45">{formatTime(capture.durationSec)}</span>
           )}
-          {rec.error && <p className="text-center text-sm text-danger">{rec.error}</p>}
+          {capture.error && <p className="text-center text-sm text-danger">{capture.error}</p>}
         </div>
       )}
 
@@ -110,7 +123,10 @@ function RecordStep({
             size="full"
             className="w-full"
             disabled={!longEnough}
-            onClick={() => rec.audioBlob && onSubmit(rec.audioBlob)}
+            onClick={() => {
+              const metrics = capture.finalizeMetrics();
+              if (capture.audioBlob) onSubmit(capture.audioBlob, metrics);
+            }}
           >
             {submitLabel}
             <ArrowRight className="h-4 w-4" />
@@ -129,14 +145,33 @@ function RecordStep({
 export function OnboardingFlow() {
   const router = useRouter();
   const [step, setStep] = useState<Step>('intro');
+  const [choice, setChoice] = useState<'camera' | 'audio' | null>(null);
   const [readingBlob, setReadingBlob] = useState<Blob | null>(null);
-  const [result, setResult] = useState<OnboardingAnalysis | null>(null);
+  const [readingMetrics, setReadingMetrics] = useState<VisualMetrics | null>(null);
+  const [result, setResult] = useState<Result | null>(null);
   const [errorMsg, setErrorMsg] = useState('');
-  const [question] = useState(
-    () => RAPID_QUESTIONS[Math.floor(Math.random() * RAPID_QUESTIONS.length)],
-  );
+  const [question] = useState(() => RAPID_QUESTIONS[Math.floor(Math.random() * RAPID_QUESTIONS.length)]);
 
-  async function runAnalysis(reading: Blob, rapid: Blob) {
+  const capture = useCameraCapture({ video: choice === 'camera', enabled: choice !== null });
+  const showCamera = choice === 'camera';
+
+  function chooseCamera() {
+    setChoice('camera');
+    void updateConsent('consent_video_analysis', true);
+    setStep('setup');
+  }
+
+  function chooseAudio() {
+    setChoice('audio');
+    setStep('reading');
+  }
+
+  async function runAnalysis(
+    reading: Blob,
+    readingM: VisualMetrics | null,
+    rapid: Blob,
+    rapidM: VisualMetrics | null,
+  ) {
     setStep('analyzing');
     try {
       const fd = new FormData();
@@ -144,10 +179,14 @@ export function OnboardingFlow() {
       fd.append('rapid', rapid, 'rapid.webm');
       fd.append('reading_text', READING_PASSAGE);
       fd.append('rapid_prompt', question);
+      fd.append('camera_enabled', String(Boolean(readingM || rapidM)));
+      if (readingM) fd.append('reading_visual', JSON.stringify(readingM));
+      if (rapidM) fd.append('rapid_visual', JSON.stringify(rapidM));
+
       const res = await fetch('/api/onboarding/analyze', { method: 'POST', body: fd });
       const data = await res.json().catch(() => null);
       if (!res.ok) throw new Error(data?.error || 'Analysis failed. Please try again.');
-      setResult(data as OnboardingAnalysis);
+      setResult(data as Result);
       setStep('result');
     } catch (e) {
       setErrorMsg(e instanceof Error ? e.message : 'Something went wrong.');
@@ -164,15 +203,33 @@ export function OnboardingFlow() {
         <div>
           <h1 className="text-2xl font-bold text-charcoal">Let&apos;s learn your speaking style</h1>
           <p className="mt-2 text-sm text-charcoal/60">
-            Two quick recordings, read a short passage, then answer one question. We&apos;ll use
-            them to personalise your practice. This takes about two minutes.
+            Two quick recordings: read a short passage, then answer one question. This takes about
+            two minutes.
           </p>
         </div>
-        <Button size="full" className="w-full" onClick={() => setStep('reading')}>
-          I&apos;m ready
-        </Button>
+
+        <Card className="text-left">
+          <CardTitle>Turn on your camera too?</CardTitle>
+          <p className="mt-1 text-sm text-charcoal/60">
+            We can also coach your visual delivery, like eye contact and framing. Your video stays
+            on your device and is never saved, only the delivery scores are.
+          </p>
+          <div className="mt-4 space-y-2">
+            <Button size="full" className="w-full" onClick={chooseCamera}>
+              <Video className="h-5 w-5" />
+              Use my camera
+            </Button>
+            <Button variant="ghost" size="full" className="w-full" onClick={chooseAudio}>
+              Audio only
+            </Button>
+          </div>
+        </Card>
       </div>
     );
+  }
+
+  if (step === 'setup') {
+    return <CameraSetup capture={capture} onReady={() => setStep('reading')} />;
   }
 
   if (step === 'reading') {
@@ -183,8 +240,12 @@ export function OnboardingFlow() {
         instruction="Read at a natural, comfortable pace."
         minSeconds={MIN_READING_SECONDS}
         submitLabel="Next"
-        onSubmit={(blob) => {
+        capture={capture}
+        showCamera={showCamera}
+        onSubmit={(blob, metrics) => {
           setReadingBlob(blob);
+          setReadingMetrics(metrics);
+          capture.reset();
           setStep('rapid');
         }}
         card={
@@ -205,8 +266,10 @@ export function OnboardingFlow() {
         minSeconds={MIN_RAPID_SECONDS}
         thinkingSeconds={THINKING_SECONDS}
         submitLabel="Build my profile"
-        onSubmit={(blob) => {
-          if (readingBlob) runAnalysis(readingBlob, blob);
+        capture={capture}
+        showCamera={showCamera}
+        onSubmit={(blob, metrics) => {
+          if (readingBlob) runAnalysis(readingBlob, readingMetrics, blob, metrics);
         }}
         card={
           <Card className="bg-primary-50">
@@ -226,7 +289,7 @@ export function OnboardingFlow() {
           'Analysing your pacing',
           'Checking pronunciation patterns',
           'Finding filler words',
-          'Building your practice plan',
+          showCamera ? 'Reviewing your visual delivery' : 'Building your practice plan',
         ]}
       />
     );
@@ -247,6 +310,7 @@ export function OnboardingFlow() {
       <ProfileResultView
         profile={result.profile}
         plan={result.plan}
+        visual={result.visual}
         onStart={() => router.push('/home')}
       />
     );

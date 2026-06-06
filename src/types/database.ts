@@ -100,6 +100,8 @@ export interface Database {
           strengths: string[];
           focus_areas: string[];
           generated_summary: string | null;
+          visual_metrics: Json | null;
+          visual_summary: string | null;
           updated_at: string;
         };
         Insert: {
@@ -115,6 +117,8 @@ export interface Database {
           strengths?: string[];
           focus_areas?: string[];
           generated_summary?: string | null;
+          visual_metrics?: Json | null;
+          visual_summary?: string | null;
           updated_at?: string;
         };
         Update: Partial<Database['public']['Tables']['speech_profiles']['Insert']>;

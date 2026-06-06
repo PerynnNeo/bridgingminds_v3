@@ -1,5 +1,6 @@
 import { Sparkles, ArrowRight } from 'lucide-react';
 import type { OnboardingAnalysis } from '@/lib/ai/types';
+import type { VisualMetrics } from '@/lib/vision/types';
 import { Card, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { MetricBars } from '@/components/ui/metric-bars';
@@ -17,10 +18,12 @@ function DetailRow({ label, children }: { label: string; children: React.ReactNo
 export function ProfileResultView({
   profile,
   plan,
+  visual,
   onStart,
 }: {
   profile: OnboardingAnalysis['profile'];
   plan: OnboardingAnalysis['plan'];
+  visual?: { summary: string; metrics: VisualMetrics } | null;
   onStart?: () => void;
 }) {
   const p = profile;
@@ -88,6 +91,22 @@ export function ProfileResultView({
           )}
         </div>
       </Card>
+
+      {visual && (
+        <Card>
+          <CardTitle>Visual delivery</CardTitle>
+          <p className="mt-2 text-sm leading-relaxed text-charcoal/80">{visual.summary}</p>
+          <MetricBars
+            className="mt-3"
+            bars={[
+              { label: 'Eye contact', value: visual.metrics.eyeContactRatio * 100 },
+              { label: 'Framing', value: visual.metrics.framingScore * 100 },
+              { label: 'Expression', value: visual.metrics.expressionVariationScore * 100 },
+              { label: 'Presence', value: visual.metrics.deliveryPresenceScore * 100 },
+            ]}
+          />
+        </Card>
+      )}
 
       {p.strengths.length > 0 && (
         <Card>

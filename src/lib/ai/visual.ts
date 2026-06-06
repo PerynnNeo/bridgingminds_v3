@@ -70,3 +70,33 @@ export async function generateVisualFeedback(input: {
     maxTokens: 500,
   });
 }
+
+const BASELINE_SYSTEM = `You are BridgingMinds, a warm delivery coach for youths (13 to 25).
+During onboarding the user gave two short clips (reading a passage, then answering a question). We measured VISUAL DELIVERY metrics on their device (numbers only, you did not see any video).
+Write a short, encouraging baseline of how they present visually, in 2 to 3 sentences.
+
+Same hard safety rules apply:
+- Never claim to know emotions, mood, or confidence. Never mention appearance or anything they cannot control.
+- Only describe controllable delivery: looking near the camera, staying in frame, framing and camera angle, steadiness, expression energy, lighting.
+- Read scores 0 to 1 (above 0.7 strong, 0.4 to 0.7 okay, below 0.4 a growth area). If faceVisibilityRatio is low, gently note the camera could not see them clearly and focus on setup.
+
+Mention one thing that looks good and the single biggest thing to work on. Friendly and plain, not clinical. Do not join clauses with any dash (no em dash, en dash, or hyphen used as a dash); use a comma or a full stop. Return ONLY JSON with a "summary" string.`;
+
+export async function generateVisualBaseline(input: {
+  metrics: VisualMetrics;
+  /** Optional one-line summary of their speech profile, for a cohesive baseline. */
+  speechSummary?: string;
+}): Promise<{ summary: string }> {
+  return generateStructured<{ summary: string }>({
+    tier: 'fast',
+    system: BASELINE_SYSTEM,
+    user: JSON.stringify(input, null, 2),
+    schema: {
+      type: 'object',
+      additionalProperties: false,
+      properties: { summary: { type: 'string' } },
+      required: ['summary'],
+    },
+    maxTokens: 400,
+  });
+}
