@@ -20,9 +20,9 @@ interface VisualFeedback {
 }
 
 const CAMERA_TIPS: Record<string, string> = {
-  presentation: 'Look at the camera as you open, then pause before your topic.',
-  pitch: 'Look at the camera on your key words so your point really lands.',
-  thinking: 'It is okay to look away while thinking. Look back before you answer.',
+  presentation: 'Look at the lens (top of your phone) as you open, then pause before your topic.',
+  pitch: 'Look at the lens on your key words so your point really lands.',
+  thinking: 'It is okay to look away while thinking. Look back at the lens before you answer.',
 };
 
 function ScorePill({ label, value }: { label: string; value: number }) {
@@ -106,6 +106,9 @@ export function PracticeRecorder({
             <ScorePill label="Clarity" value={feedback.clarityScore} />
             <ScorePill label="Pacing" value={feedback.pacingScore} />
             <ScorePill label="Pronunciation" value={feedback.pronunciationScore} />
+            {typeof feedback.relevanceScore === 'number' && (
+              <ScorePill label="On topic" value={feedback.relevanceScore} />
+            )}
             {improved && (
               <span className="inline-flex items-center gap-1 rounded-full bg-primary-100 px-2.5 py-1 text-xs font-semibold text-primary-700">
                 <TrendingUp className="h-3 w-3" />
@@ -151,7 +154,14 @@ export function PracticeRecorder({
 
   return (
     <div className="space-y-3">
-      {camera && <CameraStage capture={cap} showReadiness={!cap.isRecording} className="aspect-[4/3] w-full" />}
+      {camera && (
+        <CameraStage
+          capture={cap}
+          showReadiness={!cap.isRecording}
+          dim={cap.isRecording}
+          className={cap.isRecording ? 'mx-auto aspect-[3/4] w-28' : 'aspect-[4/3] w-full'}
+        />
+      )}
 
       {camera && tip && !cap.isRecording && (
         <div className="flex gap-2 rounded-xl bg-primary-50 p-3 text-sm text-charcoal/75">

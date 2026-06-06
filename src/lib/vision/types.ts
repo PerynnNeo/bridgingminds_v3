@@ -18,8 +18,10 @@ export interface VisualSample {
   yaw: number;
   /** Rough head pitch in degrees (up/down). 0 = facing the camera. Estimate only. */
   pitch: number;
-  /** Head oriented near the camera (the eye-contact proxy). */
+  /** Head oriented near the camera (used for mouth visibility / articulation). */
   facingCamera: boolean;
+  /** Gaze actually at the lens: head forward AND iris centred, not looking at the on-screen preview. */
+  lookingAtLens: boolean;
   /** Face bounding box in normalized [0..1] image coordinates (for visibility). */
   faceBox: { x: number; y: number; w: number; h: number } | null;
   /** Nose-tip position (normalized) used for stability tracking. */

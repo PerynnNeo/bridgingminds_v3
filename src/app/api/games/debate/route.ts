@@ -5,7 +5,12 @@ import { transcribeAudio, computeMetrics } from '@/lib/ai/transcribe';
 import { generateDebateCounterpoint, generateDebateFeedback } from '@/lib/ai/game';
 import { updateDailyMetrics } from '@/lib/metrics/dashboard';
 import { USAGE_LIMITS, OVER_LIMIT_MESSAGE } from '@/config/limits';
-import { parseVisualMetrics, hasEnoughVisualData, saveVisualAnalysis } from '@/lib/vision/server';
+import {
+  parseVisualMetrics,
+  hasEnoughVisualData,
+  saveVisualAnalysis,
+  getVisualBaseline,
+} from '@/lib/vision/server';
 import { generateVisualFeedback, type VisualFeedbackResult } from '@/lib/ai/visual';
 import type { Json } from '@/types/database';
 
@@ -91,11 +96,13 @@ export async function POST(req: Request) {
     let visual: VisualFeedbackResult | null = null;
     if (cameraEnabled && visualMetrics && hasEnoughVisualData(visualMetrics)) {
       try {
+        const baseline = await getVisualBaseline(supabase, user.id);
         visual = await generateVisualFeedback({
           activityType: 'debate',
           context: topic,
           metrics: visualMetrics,
           speechSummary: feedback.feedback,
+          baseline: baseline ?? undefined,
         });
       } catch {
         // Visual feedback is a bonus, never fail the debate over it.

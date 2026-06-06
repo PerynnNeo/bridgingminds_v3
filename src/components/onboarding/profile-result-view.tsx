@@ -60,6 +60,20 @@ export function ProfileResultView({
               ? 'Barely any, nice!'
               : `About ${Math.round(p.fillerWordRate)} per 100 words`}
           </DetailRow>
+          {typeof p.readingAccuracy === 'number' && (
+            <DetailRow label="Reading accuracy">
+              {p.readingAccuracy >= 90
+                ? 'You read it closely, nice work.'
+                : `${Math.round(p.readingAccuracy)} out of 100. Try to read every word next time.`}
+            </DetailRow>
+          )}
+          {typeof p.onTopicScore === 'number' && (
+            <DetailRow label="Staying on topic">
+              {p.onTopicScore >= 75
+                ? 'Your answer stayed on point.'
+                : `${Math.round(p.onTopicScore)} out of 100. Aim to answer the question directly.`}
+            </DetailRow>
+          )}
           {p.pausePatternSummary && <DetailRow label="Pauses">{p.pausePatternSummary}</DetailRow>}
           {p.commonMispronunciations.length > 0 && (
             <div>

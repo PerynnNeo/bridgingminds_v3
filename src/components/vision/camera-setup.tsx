@@ -6,9 +6,9 @@ import { Button } from '@/components/ui/button';
 import { CameraStage } from './camera-stage';
 
 const TIPS = [
-  'Place your phone at eye level so your delivery feedback is more useful.',
+  'Put your phone at eye level and look at the lens, not at yourself on screen.',
+  'If you can, rest your phone on a surface so it stays steady. Holding it is fine too.',
   'Make sure your face is visible and the room is not too dark.',
-  'Look near the camera when you speak, like you are presenting to someone.',
 ];
 
 /**

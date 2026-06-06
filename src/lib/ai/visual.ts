@@ -51,7 +51,9 @@ For the given activity, return:
 - "retryInstruction": one concrete action for the next take, e.g. "Look at the camera as you say your opening sentence".
 - "combinedTip": one sentence linking visual delivery with their speech for this activity.
 
-Keep each field to about 8 to 18 words. Encouraging, youth-friendly, never clinical. Do not join clauses with any dash (no em dash, en dash, or hyphen used as a dash); use a comma or a full stop instead. Return ONLY JSON.`;
+If a "baseline" object is provided, it is the user's usual visual delivery from onboarding. You MAY note when this clip is clearly better or worse than their usual (in the strength or improvement), but keep it light and only mention it when the difference is meaningful.
+
+Keep each field to about 8 to 18 words. Never cite the raw metric numbers (like 0.72 or percentages), describe them in plain words such as strong, improving, steady, or a little low. Encouraging, youth-friendly, never clinical. Do not join clauses with any dash (no em dash, en dash, or hyphen used as a dash); use a comma or a full stop instead. Return ONLY JSON.`;
 
 export async function generateVisualFeedback(input: {
   /** onboarding | practice | debate | daily_question */
@@ -61,6 +63,8 @@ export async function generateVisualFeedback(input: {
   metrics: VisualMetrics;
   /** Optional one-line summary of the speech feedback, to craft the combined tip. */
   speechSummary?: string;
+  /** Optional onboarding baseline, for "compared to your usual" personalisation. */
+  baseline?: VisualMetrics;
 }): Promise<VisualFeedbackResult> {
   return generateStructured<VisualFeedbackResult>({
     tier: 'fast',
@@ -80,7 +84,7 @@ Same hard safety rules apply:
 - Only describe controllable delivery: looking near the camera, steadiness, expression energy, lighting, and hand gestures when the hands are visible. Do not grade framing or camera angle.
 - Read scores 0 to 1 (above 0.7 strong, 0.4 to 0.7 okay, below 0.4 a growth area). If faceVisibilityRatio is low, gently note the camera could not see them clearly. Only mention hand gestures if handVisibleRatio is above 0.3.
 
-Mention one thing that looks good and the single biggest thing to work on. Friendly and plain, not clinical. Do not join clauses with any dash (no em dash, en dash, or hyphen used as a dash); use a comma or a full stop. Return ONLY JSON with a "summary" string.`;
+Mention one thing that looks good and the single biggest thing to work on. Never cite raw numbers, use plain words. Friendly and plain, not clinical. Do not join clauses with any dash (no em dash, en dash, or hyphen used as a dash); use a comma or a full stop. Return ONLY JSON with a "summary" string.`;
 
 export async function generateVisualBaseline(input: {
   metrics: VisualMetrics;

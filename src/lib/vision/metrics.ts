@@ -35,6 +35,21 @@ const RIGHT_EYE_OUTER = 263;
 const FOREHEAD = 10;
 const CHIN = 152;
 
+// Iris + eye-opening landmarks (478-point model) for gaze estimation.
+const LEFT_IRIS = 468; // left-eye iris centre
+const RIGHT_IRIS = 473; // right-eye iris centre
+const LEFT_EYE_INNER = 133;
+const LEFT_EYE_TOP = 159;
+const LEFT_EYE_BOTTOM = 145;
+const RIGHT_EYE_INNER = 362;
+const RIGHT_EYE_TOP = 386;
+const RIGHT_EYE_BOTTOM = 374;
+// Gaze tolerances: iris must be roughly centred horizontally and not looking down
+// (the on-screen self-preview sits below the top-mounted lens, so looking at it
+// reads as eyes-down). Looking up toward the lens is fine.
+const GAZE_H_TOL = 0.22;
+const GAZE_DOWN_LIMIT = 0.62;
+
 export const EMPTY_READINESS: ReadinessState = {
   cameraReady: false,
   faceVisible: false,
@@ -80,6 +95,23 @@ function handCentre(hand: HandLandmarkerResult | null): { x: number; y: number }
   };
 }
 
+/** Whether the eyes are directed at the lens (needs the 478-point iris model). */
+function gazeAtLens(lm: { x: number; y: number }[]): boolean {
+  if (lm.length < 478) return true; // no iris data: let head pose alone decide
+  const eyeRatios = (iris: number, c1: number, c2: number, top: number, bottom: number) => {
+    const hMin = Math.min(lm[c1].x, lm[c2].x);
+    const hSpan = Math.abs(lm[c2].x - lm[c1].x) || 1e-6;
+    const vMin = Math.min(lm[top].y, lm[bottom].y);
+    const vSpan = Math.abs(lm[bottom].y - lm[top].y) || 1e-6;
+    return { h: (lm[iris].x - hMin) / hSpan, v: (lm[iris].y - vMin) / vSpan };
+  };
+  const l = eyeRatios(LEFT_IRIS, LEFT_EYE_INNER, LEFT_EYE_OUTER, LEFT_EYE_TOP, LEFT_EYE_BOTTOM);
+  const r = eyeRatios(RIGHT_IRIS, RIGHT_EYE_INNER, RIGHT_EYE_OUTER, RIGHT_EYE_TOP, RIGHT_EYE_BOTTOM);
+  const hCentred = Math.abs((l.h + r.h) / 2 - 0.5) < GAZE_H_TOL;
+  const notLookingDown = (l.v + r.v) / 2 < GAZE_DOWN_LIMIT;
+  return hCentred && notLookingDown;
+}
+
 /** Extract per-frame features from MediaPipe results + the frame's brightness. */
 export function extractSample(
   face: FaceLandmarkerResult,
@@ -94,6 +126,7 @@ export function extractSample(
       yaw: 0,
       pitch: 0,
       facingCamera: false,
+      lookingAtLens: false,
       faceBox: null,
       center: null,
       expression: [],
@@ -126,6 +159,7 @@ export function extractSample(
   }
   const faceBox = { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
   const facingCamera = Math.abs(yawRatio) < FACE_YAW_LIMIT && Math.abs(pitchRatio) < FACE_PITCH_LIMIT;
+  const lookingAtLens = facingCamera && gazeAtLens(lm);
 
   const cats = face.faceBlendshapes?.[0]?.categories ?? [];
   const byName = new Map<string, number>(cats.map((c) => [c.categoryName, c.score]));
@@ -136,6 +170,7 @@ export function extractSample(
     yaw: yawRatio * 90,
     pitch: pitchRatio * 90,
     facingCamera,
+    lookingAtLens,
     faceBox,
     center: { x: nose.x, y: nose.y },
     expression,
@@ -187,7 +222,7 @@ export function aggregate(samples: VisualSample[]): VisualMetrics {
   const v = valid.length;
 
   const faceVisibilityRatio = v / n;
-  const eyeContactRatio = v ? valid.filter((s) => s.facingCamera).length / v : 0;
+  const eyeContactRatio = v ? valid.filter((s) => s.lookingAtLens).length / v : 0;
   const mouthVisibilityScore = v ? valid.filter((s) => s.mouthVisible).length / v : 0;
 
   let headStabilityScore = 0;

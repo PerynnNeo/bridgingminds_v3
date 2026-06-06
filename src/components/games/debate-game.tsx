@@ -232,7 +232,12 @@ export function DebateGame({
     return (
       <div className="space-y-3">
         {withCamera && cameraEnabled && (
-          <CameraStage capture={cap} showReadiness={!cap.isRecording} className="aspect-[4/3] w-full" />
+          <CameraStage
+            capture={cap}
+            showReadiness={!cap.isRecording}
+            dim={cap.isRecording}
+            className={cap.isRecording ? 'mx-auto aspect-[3/4] w-28' : 'aspect-[4/3] w-full'}
+          />
         )}
         <Card className="flex flex-col items-center gap-3 py-6">
           <RecordButton
@@ -396,6 +401,7 @@ export function DebateGame({
             <ScorePill label="Structure" value={feedback.structureScore} />
             <ScorePill label="Pacing" value={feedback.pacingScore} />
             <ScorePill label="Confidence" value={feedback.confidenceScore} />
+            <ScorePill label="On topic" value={feedback.relevanceScore} />
           </div>
           <p className="mt-3 text-sm text-charcoal/80">{feedback.feedback}</p>
           <div className="mt-3 flex gap-2 rounded-xl bg-info/10 p-3 text-sm text-charcoal/75">

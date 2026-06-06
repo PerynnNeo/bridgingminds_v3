@@ -3,6 +3,8 @@
 AI-powered speech confidence and communication practice platform for youths (13–25).
 Voice onboarding → personalised speech profile → practice drills + speaking games → progress dashboard.
 
+An optional **on-device camera layer** also coaches visual delivery (eye contact, expression, gestures) without ever uploading video.
+
 > Speech analytics are framed as **guidance to help you practise**, not clinical assessment.
 
 ## Tech stack
@@ -15,6 +17,7 @@ Voice onboarding → personalised speech profile → practice drills + speaking 
 | Language AI | **Claude** (Anthropic), Haiku / Sonnet / Opus tiered |
 | Speech-to-text | **AssemblyAI** (filler-word + word-timing detection) |
 | Text-to-speech | Browser Web Speech API (free; pluggable) |
+| Visual delivery | **MediaPipe** Face + Hand Landmarker, on-device (metrics only, no video stored) |
 | Hosting | Vercel |
 
 All AI calls run **server-side only**, API keys are never exposed to the browser.

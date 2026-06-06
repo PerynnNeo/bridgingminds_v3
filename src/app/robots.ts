@@ -7,7 +7,8 @@ export default function robots(): MetadataRoute.Robots {
       userAgent: '*',
       allow: '/',
       // Authenticated pages hold personal speech data, keep them out of search.
-      disallow: ['/home', '/practice', '/games', '/profile', '/onboarding', '/speech-profile', '/api/'],
+      // /camera-check is an on-device diagnostic, also kept out of search.
+      disallow: ['/home', '/practice', '/games', '/profile', '/onboarding', '/speech-profile', '/camera-check', '/api/'],
     },
     sitemap: `${siteConfig.url}/sitemap.xml`,
   };

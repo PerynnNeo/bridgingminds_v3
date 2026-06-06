@@ -33,7 +33,9 @@ Run the SQL files in `supabase/migrations/` **in order**, then the seed. Two opt
 2. `migrations/0002_row_level_security.sql` (RLS: every user sees only their own rows)
 3. `migrations/0003_storage.sql` (private `recordings` bucket + policies)
 4. `migrations/0004_coaching_cache.sql` (durable AI coaching cache)
-5. `seed.sql` (daily-question content)
+5. `migrations/0005_visual_analysis.sql` (camera module: visual_analysis_results + camera columns)
+6. `migrations/0006_profile_visual_baseline.sql` (visual baseline on the speech profile)
+7. `seed.sql` (daily-question content)
 
 **Option B: Supabase CLI.**
 ```bash
@@ -129,6 +131,14 @@ import { Analytics } from '@vercel/analytics/react';
 - **Model tiers** are in `src/lib/ai/anthropic.ts` (Haiku for fast feedback, Sonnet default, Opus for deep onboarding). Drop to cheaper tiers to cut cost.
 - **Coaching cache**: `coaching_cache` (migration 0004) persists generated coaching across cold starts and users, cutting repeat Claude calls. Safe to `truncate` if you change the coaching prompt (or bump the `v3|` signature prefix in `src/lib/ai/coaching.ts`).
 - **Privacy**: recordings live in a private bucket; RLS keeps every user's data isolated; authenticated pages are disallowed in `robots.txt`.
+
+### Camera / visual delivery
+- **On-device only**: visual analysis (eye contact, expression, head steadiness, gesture, lighting) runs in the browser via MediaPipe. **No video is ever uploaded or stored**, only the numeric metrics and the friendly feedback text. Claude never receives the face.
+- **HTTPS required**: the camera needs a secure context. It works on `localhost` and on any HTTPS domain (Vercel), but not over a plain-HTTP LAN address.
+- **Consent-gated**: the camera only appears once a user turns on **Video analysis** (the onboarding "Use my camera" choice or the Profile toggle). Everything has a built-in audio-only fallback.
+- **Scope**: camera is offered in onboarding, the Presentation / Pitch / Quick-thinking practice categories (not single-word pronunciation), the daily question, and debate vs AI. Debate friend mode is audio-only.
+- **Performance**: two MediaPipe models (face + hands) run at a low frame rate; the hand model is throttled to half-rate. The WASM + models load from a CDN on first use (a few MB, cached after).
+- **Diagnostic**: `/camera-check` is an on-device test page (noindex) for confirming the camera + metrics work on a given device. You can delete `src/app/camera-check/` before a public launch if you prefer.
 
 ---
 

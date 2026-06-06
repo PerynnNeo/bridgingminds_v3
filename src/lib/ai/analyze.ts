@@ -13,8 +13,10 @@ Rules:
 - All scores are 0 to 100 where higher is better. Base them on the metrics and transcripts provided.
 - "generatedSummary": 3 to 4 warm, specific sentences that reference what you actually observed.
 - "pausePatternSummary": 1 to 2 sentences describing their pausing (e.g. natural pauses, rushing, long gaps).
-- "commonMispronunciations": 0 to 4 specific words or sounds to practise, compare the reading transcript to the expected passage.
+- "commonMispronunciations": 0 to 4 specific words or sounds to practise. A "reading" object is provided with the exact words they skipped and mixed up (from a precise word match); prefer those.
 - "confidenceCues": 2 to 4 short, observable delivery notes (pace, steadiness, energy), never claim to read emotions.
+- "onTopicScore": 0 to 100, how well their spontaneous answer actually addressed the question and held together. Low means off-topic, rambling, avoided answering, or made little sense. This is about ON-TOPIC SUBSTANCE, never whether their opinion is "correct". Be encouraging.
+- If the "reading" object shows low coverage or skipped runs, gently mention in the summary that they skipped parts and to read every word next time.
 - "strengths" and "focusAreas": 2 to 3 each, concrete and specific.
 - The practice plan must target the user's weakest areas first. Generate 8 to 10 practice items:
   a mix of pronunciation words, presentation/pitch phrases, and a couple of spontaneous prompts,
@@ -38,6 +40,7 @@ const SCHEMA: Record<string, unknown> = {
         strengths: { type: 'array', items: { type: 'string' } },
         focusAreas: { type: 'array', items: { type: 'string' } },
         generatedSummary: { type: 'string' },
+        onTopicScore: { type: 'number' },
       },
       required: [
         'pacingScore',
@@ -50,6 +53,7 @@ const SCHEMA: Record<string, unknown> = {
         'strengths',
         'focusAreas',
         'generatedSummary',
+        'onTopicScore',
       ],
     },
     plan: {
@@ -100,6 +104,12 @@ export interface OnboardingInput {
   fillerWords: {
     reading: { text: string; count: number }[];
     rapid: { text: string; count: number }[];
+  };
+  /** Deterministic reading-fidelity result (coverage, skipped runs, mix-ups). */
+  reading?: {
+    coverage: number;
+    skipped: string[];
+    substitutions: { expected: string; said: string }[];
   };
 }
 

@@ -47,6 +47,10 @@ export interface SpeechProfile {
   strengths: string[];
   focusAreas: string[];
   generatedSummary: string;
+  /** How faithfully the onboarding passage was read (0..100, deterministic). */
+  readingAccuracy?: number;
+  /** Whether the spontaneous answer stayed on topic and made sense (0..100, AI). */
+  onTopicScore?: number;
 }
 
 /** AI feedback for a single practice attempt (maps to `practice_attempts`). */
@@ -55,6 +59,8 @@ export interface AttemptFeedback {
   pacingScore: number;
   pronunciationScore: number;
   fillerWordCount: number;
+  /** On-topic substance for open-ended prompts (quick thinking). Absent for words/phrases. */
+  relevanceScore?: number;
   /** Supportive, specific feedback (1–2 sentences). */
   feedback: string;
   /** One concrete improvement tip. */

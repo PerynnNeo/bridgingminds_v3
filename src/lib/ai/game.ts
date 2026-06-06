@@ -8,6 +8,8 @@ export interface GameFeedback {
   pacingScore: number;
   structureScore: number;
   confidenceScore: number;
+  /** Did the answer actually address the prompt with real, on-topic substance? */
+  relevanceScore: number;
   /** What went well (1–2 warm sentences). */
   feedback: string;
   /** One concrete thing to improve. */
@@ -22,10 +24,19 @@ const FEEDBACK_SCHEMA: Record<string, unknown> = {
     pacingScore: { type: 'number' },
     structureScore: { type: 'number' },
     confidenceScore: { type: 'number' },
+    relevanceScore: { type: 'number' },
     feedback: { type: 'string' },
     tip: { type: 'string' },
   },
-  required: ['clarityScore', 'pacingScore', 'structureScore', 'confidenceScore', 'feedback', 'tip'],
+  required: [
+    'clarityScore',
+    'pacingScore',
+    'structureScore',
+    'confidenceScore',
+    'relevanceScore',
+    'feedback',
+    'tip',
+  ],
 };
 
 /** Feedback on a spontaneous spoken answer to a daily question. */
@@ -40,6 +51,7 @@ A youth answered a spontaneous question out loud. Give warm, specific feedback o
 (not whether the answer is "right"). Scores 0 to 100, higher is better:
 - structureScore: did they organise their answer (opinion → reason → example) or ramble?
 - confidenceScore: steady, assured delivery.
+- relevanceScore: did they actually answer the question with real, on-topic substance, or ramble, avoid it, or make little sense? This is about staying on topic, never whether their opinion is "correct". If they clearly made things up or did not address the question, score this low and gently say so in the tip.
 "feedback" = what went well. "tip" = one concrete improvement. Encouraging, never clinical. Never use em dashes or en dashes; use commas or periods instead.`;
   return generateStructured<GameFeedback>({
     tier: 'fast',
@@ -90,6 +102,7 @@ export async function generateDebateFeedback(input: {
   const system = `You are BridgingMinds, a friendly debate coach for youths.
 Judge the user's debate DELIVERY and ARGUMENT (clarity, structure, pacing, confidence, strength of points) across
 their opening argument and their rebuttal to the opponent. Scores 0 to 100, higher is better.
+- relevanceScore: did their argument actually address the motion with real substance, or drift off-topic or waffle? Never judge whether their side is "right".
 "feedback" = what they did well (mention argument strength). "tip" = one concrete improvement (e.g. structure with
 "firstly, secondly, finally"). Encouraging, never clinical. Never use em dashes or en dashes; use commas or periods instead.`;
   return generateStructured<GameFeedback>({

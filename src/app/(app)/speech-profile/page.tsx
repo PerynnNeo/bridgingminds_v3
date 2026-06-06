@@ -70,6 +70,8 @@ export default async function SpeechProfilePage() {
     strengths: profile.strengths ?? [],
     focusAreas: profile.focus_areas ?? [],
     generatedSummary: profile.generated_summary ?? '',
+    readingAccuracy: profile.reading_accuracy_score ?? undefined,
+    onTopicScore: profile.on_topic_score ?? undefined,
   };
 
   const planView: OnboardingAnalysis['plan'] = {

@@ -40,6 +40,17 @@ export function hasEnoughVisualData(metrics: VisualMetrics): boolean {
   return metrics.sampleCount >= 5 && metrics.faceVisibilityRatio >= 0.25;
 }
 
+/** The user's onboarding visual baseline (from the speech profile), for personalised tips. */
+export async function getVisualBaseline(supabase: Client, userId: string): Promise<VisualMetrics | null> {
+  const { data } = await supabase
+    .from('speech_profiles')
+    .select('visual_metrics')
+    .eq('user_id', userId)
+    .order('updated_at', { ascending: false })
+    .limit(1);
+  return parseVisualMetrics(data?.[0]?.visual_metrics);
+}
+
 /** Average several clips' metrics into one baseline (sampleCount is summed). */
 export function averageMetrics(list: VisualMetrics[]): VisualMetrics | null {
   if (list.length === 0) return null;

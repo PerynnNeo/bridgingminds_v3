@@ -102,6 +102,8 @@ export interface Database {
           generated_summary: string | null;
           visual_metrics: Json | null;
           visual_summary: string | null;
+          reading_accuracy_score: number | null;
+          on_topic_score: number | null;
           updated_at: string;
         };
         Insert: {
@@ -119,6 +121,8 @@ export interface Database {
           generated_summary?: string | null;
           visual_metrics?: Json | null;
           visual_summary?: string | null;
+          reading_accuracy_score?: number | null;
+          on_topic_score?: number | null;
           updated_at?: string;
         };
         Update: Partial<Database['public']['Tables']['speech_profiles']['Insert']>;

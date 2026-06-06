@@ -5,7 +5,12 @@ import { transcribeAudio, computeMetrics } from '@/lib/ai/transcribe';
 import { generateAttemptFeedback } from '@/lib/ai/feedback';
 import { updateDailyMetrics } from '@/lib/metrics/dashboard';
 import { USAGE_LIMITS, OVER_LIMIT_MESSAGE } from '@/config/limits';
-import { parseVisualMetrics, hasEnoughVisualData, saveVisualAnalysis } from '@/lib/vision/server';
+import {
+  parseVisualMetrics,
+  hasEnoughVisualData,
+  saveVisualAnalysis,
+  getVisualBaseline,
+} from '@/lib/vision/server';
 import { generateVisualFeedback, type VisualFeedbackResult } from '@/lib/ai/visual';
 import type { Json } from '@/types/database';
 
@@ -29,6 +34,7 @@ export async function POST(req: Request) {
   const audio = form.get('audio');
   const text = String(form.get('text') ?? '').trim();
   const targetSkill = String(form.get('target_skill') ?? '').trim() || undefined;
+  const category = String(form.get('category') ?? '').trim();
   const rawItemId = form.get('item_id');
   const cameraEnabled = String(form.get('camera_enabled') ?? '') === 'true';
   const visualMetrics = parseVisualMetrics(form.get('visual_metrics'));
@@ -77,6 +83,7 @@ export async function POST(req: Request) {
       metrics,
       fillerWordCount: transcript.fillerWordCount,
       targetSkill,
+      assessRelevance: category === 'thinking',
     });
 
     // Did they improve vs their last attempt? (spec: post-recording feedback)
@@ -103,11 +110,13 @@ export async function POST(req: Request) {
     let visual: VisualFeedbackResult | null = null;
     if (cameraEnabled && visualMetrics && hasEnoughVisualData(visualMetrics)) {
       try {
+        const baseline = await getVisualBaseline(supabase, user.id);
         visual = await generateVisualFeedback({
           activityType: 'practice',
           context: text,
           metrics: visualMetrics,
           speechSummary: feedback.feedback,
+          baseline: baseline ?? undefined,
         });
       } catch {
         // Visual feedback is a bonus, never fail the attempt over it.

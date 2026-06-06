@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { transcribeAudio, computeMetrics } from '@/lib/ai/transcribe';
 import { generateOnboardingAnalysis } from '@/lib/ai/analyze';
+import { analyzeReading } from '@/lib/onboarding/reading';
 import { updateDailyMetrics } from '@/lib/metrics/dashboard';
 import { READING_PASSAGE } from '@/lib/onboarding/content';
 import {
@@ -74,6 +75,9 @@ export async function POST(req: Request) {
     const readingMetrics = computeMetrics(readingT);
     const rapidMetrics = computeMetrics(rapidT);
 
+    // Deterministic reading fidelity (reliably catches skipped / mixed-up words).
+    const readingFidelity = analyzeReading(readingText, readingT.text);
+
     // Generate the speech profile + personalised plan (Claude Opus, adaptive thinking).
     const { profile, plan } = await generateOnboardingAnalysis({
       readingTranscript: readingT.text,
@@ -83,7 +87,13 @@ export async function POST(req: Request) {
       expectedReadingText: readingText,
       rapidPrompt,
       fillerWords: { reading: readingT.fillerWords, rapid: rapidT.fillerWords },
+      reading: {
+        coverage: readingFidelity.coverage,
+        skipped: readingFidelity.skipped,
+        substitutions: readingFidelity.substitutions,
+      },
     });
+    profile.readingAccuracy = readingFidelity.accuracy;
 
     // Visual delivery baseline (optional, only when the camera was used).
     const clips = [readingVisual, rapidVisual].filter((m): m is VisualMetrics => m !== null);
@@ -131,6 +141,8 @@ export async function POST(req: Request) {
       strengths: profile.strengths,
       focus_areas: profile.focusAreas,
       generated_summary: profile.generatedSummary,
+      reading_accuracy_score: readingFidelity.accuracy,
+      on_topic_score: profile.onTopicScore ?? null,
       visual_metrics: baseline ? (baseline as unknown as Json) : null,
       visual_summary: visualSummary,
     });

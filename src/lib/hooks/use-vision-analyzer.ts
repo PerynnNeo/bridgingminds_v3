@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { FaceLandmarker, HandLandmarker } from '@mediapipe/tasks-vision';
+import type { FaceLandmarker, HandLandmarker, HandLandmarkerResult } from '@mediapipe/tasks-vision';
 import { getFaceLandmarker, getHandLandmarker } from '@/lib/vision/face-landmarker';
 import { aggregate, extractSample, readinessFrom, EMPTY_READINESS } from '@/lib/vision/metrics';
 import type { ReadinessState, VisualMetrics, VisualSample } from '@/lib/vision/types';
@@ -44,6 +44,8 @@ export function useVisionAnalyzer(): VisionAnalyzer {
   const previewRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const lastTsRef = useRef(0);
+  const tickRef = useRef(0);
+  const lastHandResultRef = useRef<HandLandmarkerResult | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -102,9 +104,14 @@ export function useVisionAnalyzer(): VisionAnalyzer {
       lastTsRef.current = ts;
       try {
         const faceResult = lm.detectForVideo(video, ts);
-        const handResult = handLandmarkerRef.current
-          ? handLandmarkerRef.current.detectForVideo(video, ts)
-          : null;
+        // The hand model is heavier, so run it at half the face rate and reuse the
+        // last result on skipped ticks. Keeps gesture stable on slower devices.
+        let handResult = lastHandResultRef.current;
+        if (handLandmarkerRef.current && tickRef.current % 2 === 0) {
+          handResult = handLandmarkerRef.current.detectForVideo(video, ts);
+          lastHandResultRef.current = handResult;
+        }
+        tickRef.current += 1;
         const sample = extractSample(faceResult, handResult, brightnessOf(video));
         if (accumulate) samplesRef.current.push(sample);
         setReadiness(readinessFrom(sample));
@@ -131,6 +138,8 @@ export function useVisionAnalyzer(): VisionAnalyzer {
   const startSampling = useCallback(() => {
     if (intervalRef.current) return;
     samplesRef.current = [];
+    tickRef.current = 0;
+    lastHandResultRef.current = null;
     intervalRef.current = setInterval(() => sampleOnce(true), SAMPLE_INTERVAL_MS);
   }, [sampleOnce]);
 

@@ -325,7 +325,9 @@ export function DailyQuestionGame({
           <p className="mt-1 text-base font-semibold leading-snug text-charcoal">{current.text}</p>
         </Card>
         <div className="flex flex-col items-center gap-5 py-2">
-          {cameraEnabled && <CameraStage capture={cap} showReadiness={false} className="aspect-[4/3] w-full" />}
+          {cameraEnabled && (
+            <CameraStage capture={cap} showReadiness={false} dim className="mx-auto aspect-[3/4] w-28" />
+          )}
           <CircularDial secondsLeft={secsLeft} total={SPEAK_SECONDS} label="Recording" tone="rec" />
           <p className="text-sm text-charcoal/60">Speak naturally. We will stop automatically at zero.</p>
           <Button size="full" variant="danger" onClick={stopSpeaking}>
@@ -389,6 +391,7 @@ export function DailyQuestionGame({
             <ScorePill label="Pacing" value={feedback.pacingScore} />
             <ScorePill label="Structure" value={feedback.structureScore} />
             <ScorePill label="Confidence" value={feedback.confidenceScore} />
+            <ScorePill label="On topic" value={feedback.relevanceScore} />
           </div>
           <p className="mt-3 text-sm text-charcoal/80">{feedback.feedback}</p>
           <div className="mt-3 flex gap-2.5 rounded-xl bg-info/10 p-3">

@@ -26,10 +26,13 @@ function ReadyDot({ ok, label }: { ok: boolean; label: string }) {
 export function CameraStage({
   capture,
   showReadiness = true,
+  dim = false,
   className,
 }: {
   capture: CameraCapture;
   showReadiness?: boolean;
+  /** Subdue the self-preview (used while recording) so users look at the lens, not themselves. */
+  dim?: boolean;
   className?: string;
 }) {
   if (capture.cameraUnavailable) {
@@ -49,10 +52,22 @@ export function CameraStage({
   return (
     <div className={cn('relative overflow-hidden rounded-2xl bg-charcoal/90', className)}>
       {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
-      <video ref={capture.videoRef} muted playsInline className="h-full w-full -scale-x-100 object-cover" />
+      <video
+        ref={capture.videoRef}
+        muted
+        playsInline
+        className={cn('h-full w-full -scale-x-100 object-cover', dim && 'opacity-40')}
+      />
       {!capture.cameraOn && (
         <div className="absolute inset-0 grid place-items-center">
           <span className="h-7 w-7 animate-spin rounded-full border-2 border-white/30 border-t-white/80" />
+        </div>
+      )}
+      {dim && capture.cameraOn && (
+        <div className="absolute inset-0 grid place-items-center">
+          <span className="rounded-full bg-black/45 px-3 py-1 text-xs font-medium text-white/90">
+            Look at the lens
+          </span>
         </div>
       )}
       {showReadiness && capture.cameraOn && (
