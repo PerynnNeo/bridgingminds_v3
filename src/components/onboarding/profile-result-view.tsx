@@ -100,8 +100,10 @@ export function ProfileResultView({
             className="mt-3"
             bars={[
               { label: 'Eye contact', value: visual.metrics.eyeContactRatio * 100 },
-              { label: 'Framing', value: visual.metrics.framingScore * 100 },
               { label: 'Expression', value: visual.metrics.expressionVariationScore * 100 },
+              ...(visual.metrics.handVisibleRatio > 0.3
+                ? [{ label: 'Gesture', value: visual.metrics.gestureScore * 100 }]
+                : []),
               { label: 'Presence', value: visual.metrics.deliveryPresenceScore * 100 },
             ]}
           />

@@ -87,7 +87,6 @@ export default function CameraCheckPage() {
                 label={analyzer.ready ? 'Model ready' : 'Loading model'}
               />
               <Chip ok={readiness.faceVisible} label="Face visible" />
-              <Chip ok={readiness.centered} label="Centered" />
               <Chip ok={readiness.lightingOk} label="Lighting" />
             </div>
 
@@ -124,11 +123,12 @@ export default function CameraCheckPage() {
                 </p>
                 <Bar label="Eye contact" value={metrics.eyeContactRatio} />
                 <Bar label="Face visibility" value={metrics.faceVisibilityRatio} />
-                <Bar label="Framing" value={metrics.framingScore} />
                 <Bar label="Head stability" value={metrics.headStabilityScore} />
                 <Bar label="Expression variation" value={metrics.expressionVariationScore} />
                 <Bar label="Mouth visibility" value={metrics.mouthVisibilityScore} />
                 <Bar label="Lighting quality" value={metrics.lightingQualityScore} />
+                <Bar label="Hand visible" value={metrics.handVisibleRatio} />
+                <Bar label="Gesture balance" value={metrics.gestureScore} />
                 <div className="border-t border-charcoal/10 pt-3">
                   <Bar label="Delivery presence" value={metrics.deliveryPresenceScore} />
                 </div>

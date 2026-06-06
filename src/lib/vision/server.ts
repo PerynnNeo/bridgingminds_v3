@@ -24,11 +24,12 @@ export function parseVisualMetrics(raw: unknown): VisualMetrics | null {
   return {
     eyeContactRatio: num(o.eyeContactRatio),
     faceVisibilityRatio: num(o.faceVisibilityRatio),
-    framingScore: num(o.framingScore),
     headStabilityScore: num(o.headStabilityScore),
     expressionVariationScore: num(o.expressionVariationScore),
     mouthVisibilityScore: num(o.mouthVisibilityScore),
     lightingQualityScore: num(o.lightingQualityScore),
+    gestureScore: num(o.gestureScore),
+    handVisibleRatio: num(o.handVisibleRatio),
     deliveryPresenceScore: num(o.deliveryPresenceScore),
     sampleCount: typeof o.sampleCount === 'number' ? Math.max(0, Math.round(o.sampleCount)) : 0,
   };
@@ -47,11 +48,12 @@ export function averageMetrics(list: VisualMetrics[]): VisualMetrics | null {
   return {
     eyeContactRatio: mean('eyeContactRatio'),
     faceVisibilityRatio: mean('faceVisibilityRatio'),
-    framingScore: mean('framingScore'),
     headStabilityScore: mean('headStabilityScore'),
     expressionVariationScore: mean('expressionVariationScore'),
     mouthVisibilityScore: mean('mouthVisibilityScore'),
     lightingQualityScore: mean('lightingQualityScore'),
+    gestureScore: mean('gestureScore'),
+    handVisibleRatio: mean('handVisibleRatio'),
     deliveryPresenceScore: mean('deliveryPresenceScore'),
     sampleCount: list.reduce((sum, m) => sum + m.sampleCount, 0),
   };
@@ -75,11 +77,11 @@ export async function saveVisualAnalysis(
       activity_id: input.activityId ?? null,
       eye_contact_ratio: input.metrics.eyeContactRatio,
       face_visibility_ratio: input.metrics.faceVisibilityRatio,
-      framing_score: input.metrics.framingScore,
       head_stability_score: input.metrics.headStabilityScore,
       expression_variation_score: input.metrics.expressionVariationScore,
       mouth_visibility_score: input.metrics.mouthVisibilityScore,
       lighting_quality_score: input.metrics.lightingQualityScore,
+      gesture_balance_score: input.metrics.gestureScore,
       delivery_presence_score: input.metrics.deliveryPresenceScore,
       feedback_summary: input.feedbackSummary ?? null,
     });

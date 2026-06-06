@@ -59,7 +59,6 @@ export function CameraStage({
         <div className="absolute inset-x-0 bottom-0 flex justify-center gap-1.5 bg-gradient-to-t from-black/45 to-transparent p-2">
           <ReadyDot ok={capture.readiness.faceVisible} label="Face" />
           <ReadyDot ok={capture.readiness.lightingOk} label="Light" />
-          <ReadyDot ok={capture.readiness.centered} label="Center" />
         </div>
       )}
     </div>

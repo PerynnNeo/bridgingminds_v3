@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/states';
 import { createClient } from '@/lib/supabase/server';
 import { isSupabaseConfigured } from '@/lib/supabase/env';
+import { parseVisualMetrics } from '@/lib/vision/server';
 import type { OnboardingAnalysis } from '@/lib/ai/types';
 import type { SpeechProfileRow, PracticePlan } from '@/types/database';
 
@@ -79,9 +80,15 @@ export default async function SpeechProfilePage() {
     items: [],
   };
 
+  const visualMetrics = parseVisualMetrics(profile.visual_metrics);
+  const visual =
+    visualMetrics && profile.visual_summary
+      ? { summary: profile.visual_summary, metrics: visualMetrics }
+      : null;
+
   return (
     <div className="space-y-5">
-      <ProfileResultView profile={profileView} plan={planView} />
+      <ProfileResultView profile={profileView} plan={planView} visual={visual} />
       <Link href="/practice" className="block">
         <Button size="full" className="w-full">
           Practise now

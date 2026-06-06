@@ -1,8 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { FaceLandmarker } from '@mediapipe/tasks-vision';
-import { getFaceLandmarker } from '@/lib/vision/face-landmarker';
+import type { FaceLandmarker, HandLandmarker } from '@mediapipe/tasks-vision';
+import { getFaceLandmarker, getHandLandmarker } from '@/lib/vision/face-landmarker';
 import { aggregate, extractSample, readinessFrom, EMPTY_READINESS } from '@/lib/vision/metrics';
 import type { ReadinessState, VisualMetrics, VisualSample } from '@/lib/vision/types';
 
@@ -37,6 +37,7 @@ export function useVisionAnalyzer(): VisionAnalyzer {
   const [readiness, setReadiness] = useState<ReadinessState>(EMPTY_READINESS);
 
   const landmarkerRef = useRef<FaceLandmarker | null>(null);
+  const handLandmarkerRef = useRef<HandLandmarker | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const samplesRef = useRef<VisualSample[]>([]);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -50,6 +51,13 @@ export function useVisionAnalyzer(): VisionAnalyzer {
       setReady(true);
     } catch {
       setLoadError('Visual analysis could not start on this device.');
+      return;
+    }
+    // Hand model is best-effort: gesture is a bonus and must not block face analysis.
+    try {
+      handLandmarkerRef.current = await getHandLandmarker();
+    } catch {
+      handLandmarkerRef.current = null;
     }
   }, []);
 
@@ -93,8 +101,11 @@ export function useVisionAnalyzer(): VisionAnalyzer {
       if (ts <= lastTsRef.current) ts = lastTsRef.current + 1;
       lastTsRef.current = ts;
       try {
-        const result = lm.detectForVideo(video, ts);
-        const sample = extractSample(result, brightnessOf(video));
+        const faceResult = lm.detectForVideo(video, ts);
+        const handResult = handLandmarkerRef.current
+          ? handLandmarkerRef.current.detectForVideo(video, ts)
+          : null;
+        const sample = extractSample(faceResult, handResult, brightnessOf(video));
         if (accumulate) samplesRef.current.push(sample);
         setReadiness(readinessFrom(sample));
       } catch {
