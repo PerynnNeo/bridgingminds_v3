@@ -31,6 +31,7 @@ const config: Config = {
         info: '#7ea8d4', // soft blue, guidance / informational
         warning: '#f5c97b', // warm yellow, streaks / achievements
         danger: '#e08a8a', // muted red, errors only
+        success: '#3f9e72', // positive green, confirmations / "good" states
       },
       fontFamily: {
         sans: ['var(--font-inter)', 'system-ui', '-apple-system', 'sans-serif'],
