@@ -1,7 +1,8 @@
 import Link from 'next/link';
-import { ArrowRight, Flame } from 'lucide-react';
+import { ArrowRight, Flame, Eye } from 'lucide-react';
 import { ScoreCard } from '@/components/ui/score-card';
 import { Card } from '@/components/ui/card';
+import { MetricBars } from '@/components/ui/metric-bars';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/states';
 import { ProgressSnapshot } from './progress-snapshot';
@@ -25,6 +26,7 @@ export function HomeDashboard({ name, data }: { name: string | null; data: Dashb
     mostImprovedSkill,
     trends,
     motivationalLine,
+    visual,
   } = data;
 
   return (
@@ -66,6 +68,24 @@ export function HomeDashboard({ name, data }: { name: string | null; data: Dashb
               See full profile →
             </Link>
           </div>
+
+          {visual && (
+            <Card>
+              <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-charcoal/45">
+                <Eye className="h-3.5 w-3.5" />
+                Visual delivery
+              </p>
+              <MetricBars
+                className="mt-3"
+                bars={[
+                  { label: 'Eye contact', value: visual.eyeContact * 100 },
+                  { label: 'Expression', value: visual.expression * 100 },
+                  { label: 'Presence', value: visual.presence * 100 },
+                ]}
+              />
+              <p className="mt-3 text-sm text-charcoal/70">{visual.focusNudge}</p>
+            </Card>
+          )}
 
           <Card>
             <div className="flex items-center justify-between">

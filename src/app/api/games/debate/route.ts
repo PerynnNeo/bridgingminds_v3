@@ -5,6 +5,9 @@ import { transcribeAudio, computeMetrics } from '@/lib/ai/transcribe';
 import { generateDebateCounterpoint, generateDebateFeedback } from '@/lib/ai/game';
 import { updateDailyMetrics } from '@/lib/metrics/dashboard';
 import { USAGE_LIMITS, OVER_LIMIT_MESSAGE } from '@/config/limits';
+import { parseVisualMetrics, hasEnoughVisualData, saveVisualAnalysis } from '@/lib/vision/server';
+import { generateVisualFeedback, type VisualFeedbackResult } from '@/lib/ai/visual';
+import type { Json } from '@/types/database';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -29,6 +32,8 @@ export async function POST(req: Request) {
   const userSide = String(form.get('side') ?? 'agree') === 'disagree' ? 'disagree' : 'agree';
   const difficultyRaw = String(form.get('difficulty') ?? 'medium');
   const difficulty = difficultyRaw === 'easy' || difficultyRaw === 'hard' ? difficultyRaw : 'medium';
+  const cameraEnabled = String(form.get('camera_enabled') ?? '') === 'true';
+  const visualMetrics = parseVisualMetrics(form.get('visual_metrics'));
   if (!(audio instanceof File) || !topic || (phase !== 'argument' && phase !== 'rebuttal')) {
     return NextResponse.json({ error: 'A recording is required.' }, { status: 400 });
   }
@@ -83,23 +88,54 @@ export async function POST(req: Request) {
       metrics,
     });
 
-    await supabase.from('game_sessions').insert({
-      user_id: user.id,
-      game_type: 'debate',
-      mode: 'solo_ai',
-      prompt: topic,
-      transcript: `${argumentTranscript}\n\n[Rebuttal] ${transcript.text}`,
-      audio_path: path,
-      clarity_score: feedback.clarityScore,
-      pacing_score: feedback.pacingScore,
-      structure_score: feedback.structureScore,
-      confidence_score: feedback.confidenceScore,
-      feedback: feedback.feedback,
-    });
+    let visual: VisualFeedbackResult | null = null;
+    if (cameraEnabled && visualMetrics && hasEnoughVisualData(visualMetrics)) {
+      try {
+        visual = await generateVisualFeedback({
+          activityType: 'debate',
+          context: topic,
+          metrics: visualMetrics,
+          speechSummary: feedback.feedback,
+        });
+      } catch {
+        // Visual feedback is a bonus, never fail the debate over it.
+      }
+    }
+
+    const { data: sessionRow } = await supabase
+      .from('game_sessions')
+      .insert({
+        user_id: user.id,
+        game_type: 'debate',
+        mode: 'solo_ai',
+        prompt: topic,
+        transcript: `${argumentTranscript}\n\n[Rebuttal] ${transcript.text}`,
+        audio_path: path,
+        clarity_score: feedback.clarityScore,
+        pacing_score: feedback.pacingScore,
+        structure_score: feedback.structureScore,
+        confidence_score: feedback.confidenceScore,
+        feedback: feedback.feedback,
+        camera_enabled: cameraEnabled,
+        visual_metrics: visualMetrics ? (visualMetrics as unknown as Json) : null,
+        combined_feedback: visual ? (visual as unknown as Json) : null,
+      })
+      .select('id')
+      .single();
 
     await updateDailyMetrics(supabase, user.id);
 
-    return NextResponse.json({ transcript: transcript.text, feedback });
+    if (cameraEnabled && visualMetrics) {
+      await saveVisualAnalysis(supabase, {
+        userId: user.id,
+        activityType: 'debate',
+        activityId: sessionRow?.id ?? null,
+        metrics: visualMetrics,
+        feedbackSummary: visual?.improvement,
+      });
+    }
+
+    return NextResponse.json({ transcript: transcript.text, feedback, visual });
   } catch (err) {
     console.error('[games/debate]', err);
     const message = err instanceof Error ? err.message : 'Something went wrong.';

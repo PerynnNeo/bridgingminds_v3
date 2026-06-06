@@ -1,16 +1,24 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Volume2, Lightbulb, RotateCcw, ArrowRight, Shuffle } from 'lucide-react';
+import { Volume2, Lightbulb, RotateCcw, ArrowRight, Shuffle, Eye } from 'lucide-react';
 import type { GameFeedback, FriendDebateResult } from '@/lib/ai/game';
 import { DEBATE_TOPICS } from '@/lib/games/topics';
-import { useRecorder } from '@/lib/hooks/use-recorder';
+import { useCameraCapture } from '@/lib/hooks/use-camera-capture';
 import { speak } from '@/lib/tts';
 import { Card, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { RecordButton } from '@/components/ui/record-button';
 import { LoadingState, ErrorState } from '@/components/ui/states';
+import { CameraStage } from '@/components/vision/camera-stage';
 import { cn } from '@/lib/utils';
+
+interface VisualFeedback {
+  strength: string;
+  improvement: string;
+  retryInstruction: string;
+  combinedTip: string;
+}
 
 type Step =
   | 'prep'
@@ -97,13 +105,15 @@ export function DebateGame({
   difficulty,
   initialTopic,
   initialSide,
+  cameraEnabled = false,
 }: {
   initialMode: 'ai' | 'human';
   difficulty: Difficulty;
   initialTopic: string;
   initialSide: Side;
+  cameraEnabled?: boolean;
 }) {
-  const rec = useRecorder();
+  const cap = useCameraCapture({ video: cameraEnabled && initialMode === 'ai', enabled: true });
   const [step, setStep] = useState<Step>(initialMode === 'human' ? 'friend-setup' : 'prep');
   const [topic, setTopic] = useState(initialTopic);
   const [side, setSide] = useState<Side>(initialSide);
@@ -115,6 +125,7 @@ export function DebateGame({
   const [p1Blob, setP1Blob] = useState<Blob | null>(null);
   const [prepLeft, setPrepLeft] = useState(PREP_SECONDS);
   const [error, setError] = useState('');
+  const [visual, setVisual] = useState<VisualFeedback | null>(null);
 
   useEffect(() => {
     if (step !== 'prep') return;
@@ -132,7 +143,7 @@ export function DebateGame({
     return () => clearInterval(id);
   }, [step]);
 
-  const recorded = rec.audioBlob !== null && !rec.isRecording;
+  const recorded = cap.audioBlob !== null && !cap.isRecording;
 
   async function post(url: string, fd: FormData) {
     const res = await fetch(url, { method: 'POST', body: fd });
@@ -142,11 +153,11 @@ export function DebateGame({
   }
 
   async function submitArgument() {
-    if (!rec.audioBlob) return;
+    if (!cap.audioBlob) return;
     setStep('arg-submitting');
     try {
       const fd = new FormData();
-      fd.append('audio', rec.audioBlob, 'argument.webm');
+      fd.append('audio', cap.audioBlob, 'argument.webm');
       fd.append('phase', 'argument');
       fd.append('topic', topic);
       fd.append('side', side);
@@ -154,7 +165,7 @@ export function DebateGame({
       const data = await post('/api/games/debate', fd);
       setArgumentTranscript(data.transcript);
       setCounterpoint(data.counterpoint);
-      rec.reset();
+      cap.reset();
       setStep('counterpoint');
       speak(data.counterpoint);
     } catch (e) {
@@ -164,18 +175,22 @@ export function DebateGame({
   }
 
   async function submitRebuttal() {
-    if (!rec.audioBlob) return;
+    if (!cap.audioBlob) return;
     setStep('reb-submitting');
     try {
       const fd = new FormData();
-      fd.append('audio', rec.audioBlob, 'rebuttal.webm');
+      fd.append('audio', cap.audioBlob, 'rebuttal.webm');
       fd.append('phase', 'rebuttal');
       fd.append('topic', topic);
       fd.append('side', side);
       fd.append('argument_transcript', argumentTranscript);
       fd.append('counterpoint', counterpoint);
+      const metrics = cap.finalizeMetrics();
+      fd.append('camera_enabled', String(Boolean(metrics)));
+      if (metrics) fd.append('visual_metrics', JSON.stringify(metrics));
       const data = await post('/api/games/debate', fd);
       setFeedback(data.feedback);
+      setVisual(data.visual ?? null);
       setStep('ai-feedback');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Something went wrong.');
@@ -184,12 +199,12 @@ export function DebateGame({
   }
 
   async function submitFriend() {
-    if (!p1Blob || !rec.audioBlob) return;
+    if (!p1Blob || !cap.audioBlob) return;
     setStep('friend-submitting');
     try {
       const fd = new FormData();
       fd.append('audio1', p1Blob, 'p1.webm');
-      fd.append('audio2', rec.audioBlob, 'p2.webm');
+      fd.append('audio2', cap.audioBlob, 'p2.webm');
       fd.append('topic', topic);
       const data = await post('/api/games/debate/friend', fd);
       setFriendResult(data);
@@ -201,9 +216,10 @@ export function DebateGame({
   }
 
   function reset() {
-    rec.reset();
+    cap.reset();
     setP1Blob(null);
     setFeedback(null);
+    setVisual(null);
     setFriendResult(null);
     setError('');
     setDraft('');
@@ -212,24 +228,30 @@ export function DebateGame({
     setStep(initialMode === 'human' ? 'friend-setup' : 'prep');
   }
 
-  function recorder(label: string, onSubmit: () => void) {
+  function recorder(label: string, onSubmit: () => void, withCamera = false) {
     return (
-      <Card className="flex flex-col items-center gap-3 py-6">
-        <RecordButton
-          isRecording={rec.isRecording}
-          onClick={() => (rec.isRecording ? rec.stop() : rec.start())}
-        />
-        {recorded ? (
-          <Button size="sm" onClick={onSubmit}>
-            {label}
-            <ArrowRight className="h-4 w-4" />
-          </Button>
-        ) : (
-          <span className="text-sm text-charcoal/55">
-            {rec.isRecording ? 'Recording… tap to stop' : 'Tap to record'}
-          </span>
+      <div className="space-y-3">
+        {withCamera && cameraEnabled && (
+          <CameraStage capture={cap} showReadiness={!cap.isRecording} className="aspect-[4/3] w-full" />
         )}
-      </Card>
+        <Card className="flex flex-col items-center gap-3 py-6">
+          <RecordButton
+            isRecording={cap.isRecording}
+            onClick={() => (cap.isRecording ? cap.stop() : cap.start())}
+          />
+          {recorded ? (
+            <Button size="sm" onClick={onSubmit}>
+              {label}
+              <ArrowRight className="h-4 w-4" />
+            </Button>
+          ) : (
+            <span className="text-sm text-charcoal/55">
+              {cap.isRecording ? 'Recording… tap to stop' : 'Tap to record'}
+            </span>
+          )}
+          {cap.error && <p className="text-center text-sm text-danger">{cap.error}</p>}
+        </Card>
+      </div>
     );
   }
 
@@ -332,7 +354,7 @@ export function DebateGame({
         <p className="text-center text-sm text-charcoal/60">
           Make your opening argument ({sideLabel(side)}).
         </p>
-        {recorder('Send to opponent', submitArgument)}
+        {recorder('Send to opponent', submitArgument, true)}
       </div>
     );
   }
@@ -357,7 +379,7 @@ export function DebateGame({
           <p className="mt-2 text-base text-charcoal/85">{counterpoint}</p>
         </Card>
         <p className="text-center text-sm text-charcoal/60">Now record your rebuttal.</p>
-        {recorder('Get my feedback', submitRebuttal)}
+        {recorder('Get my feedback', submitRebuttal, true)}
       </div>
     );
   }
@@ -381,6 +403,26 @@ export function DebateGame({
             <span>{feedback.tip}</span>
           </div>
         </Card>
+        {visual && (
+          <Card>
+            <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-charcoal/40">
+              <Eye className="h-3.5 w-3.5" />
+              Visual delivery
+            </p>
+            <p className="mt-2 flex gap-2 text-sm text-charcoal/80">
+              <span className="text-primary-500">✓</span>
+              {visual.strength}
+            </p>
+            <p className="mt-1.5 flex gap-2 text-sm text-charcoal/80">
+              <span className="text-info">→</span>
+              {visual.improvement}
+            </p>
+            <div className="mt-3 flex gap-2 rounded-xl bg-info/10 p-3 text-sm text-charcoal/75">
+              <Lightbulb className="h-4 w-4 shrink-0 text-info" />
+              <span>{visual.retryInstruction}</span>
+            </div>
+          </Card>
+        )}
         <Button size="full" className="w-full" onClick={reset}>
           <RotateCcw className="h-4 w-4" />
           New debate
@@ -421,8 +463,8 @@ export function DebateGame({
           Player 1, argue <span className="text-primary-600">FOR</span> the motion.
         </p>
         {recorder('Pass to Player 2', () => {
-          setP1Blob(rec.audioBlob);
-          rec.reset();
+          setP1Blob(cap.audioBlob);
+          cap.reset();
           setStep('friend-p2');
         })}
       </div>

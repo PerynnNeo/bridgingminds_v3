@@ -27,6 +27,7 @@ function dayIndex(len: number): number {
 export default async function DailyQuestionPage() {
   let questions: DailyQ[] = [];
   let stats: DailyStats = EMPTY_STATS;
+  let cameraEnabled = false;
 
   if (isSupabaseConfigured()) {
     const supabase = await createClient();
@@ -43,6 +44,14 @@ export default async function DailyQuestionPage() {
       difficulty: q.difficulty,
     }));
     stats = resolvedStats;
+    if (user) {
+      const { data: prof } = await supabase
+        .from('profiles')
+        .select('consent_video_analysis')
+        .eq('id', user.id)
+        .maybeSingle();
+      cameraEnabled = prof?.consent_video_analysis ?? false;
+    }
   }
   if (questions.length === 0) questions = FALLBACK_QUESTIONS;
 
@@ -56,7 +65,12 @@ export default async function DailyQuestionPage() {
         Games
       </Link>
 
-      <DailyQuestionGame questions={questions} initialIndex={dayIndex(questions.length)} stats={stats} />
+      <DailyQuestionGame
+        questions={questions}
+        initialIndex={dayIndex(questions.length)}
+        stats={stats}
+        cameraEnabled={cameraEnabled}
+      />
     </div>
   );
 }

@@ -2,6 +2,8 @@ import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import { DebateGame } from '@/components/games/debate-game';
 import { DEBATE_TOPICS } from '@/lib/games/topics';
+import { createClient } from '@/lib/supabase/server';
+import { isSupabaseConfigured } from '@/lib/supabase/env';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,6 +18,22 @@ export default async function DebatePage({
   // Generate topic + side on the server (per request) so it doesn't mismatch on hydration.
   const initialTopic = DEBATE_TOPICS[Math.floor(Math.random() * DEBATE_TOPICS.length)];
   const initialSide: 'agree' | 'disagree' = Math.random() < 0.5 ? 'agree' : 'disagree';
+
+  let cameraEnabled = false;
+  if (isSupabaseConfigured()) {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (user) {
+      const { data: prof } = await supabase
+        .from('profiles')
+        .select('consent_video_analysis')
+        .eq('id', user.id)
+        .maybeSingle();
+      cameraEnabled = prof?.consent_video_analysis ?? false;
+    }
+  }
 
   return (
     <div className="space-y-5">
@@ -34,6 +52,7 @@ export default async function DebatePage({
         difficulty={diff}
         initialTopic={initialTopic}
         initialSide={initialSide}
+        cameraEnabled={cameraEnabled}
       />
     </div>
   );

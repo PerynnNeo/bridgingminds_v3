@@ -5,6 +5,9 @@ import { transcribeAudio, computeMetrics } from '@/lib/ai/transcribe';
 import { generateDailyQuestionFeedback } from '@/lib/ai/game';
 import { updateDailyMetrics } from '@/lib/metrics/dashboard';
 import { USAGE_LIMITS, OVER_LIMIT_MESSAGE } from '@/config/limits';
+import { parseVisualMetrics, hasEnoughVisualData, saveVisualAnalysis } from '@/lib/vision/server';
+import { generateVisualFeedback, type VisualFeedbackResult } from '@/lib/ai/visual';
+import type { Json } from '@/types/database';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -27,6 +30,8 @@ export async function POST(req: Request) {
 
   const audio = form.get('audio');
   const question = String(form.get('question') ?? '').trim();
+  const cameraEnabled = String(form.get('camera_enabled') ?? '') === 'true';
+  const visualMetrics = parseVisualMetrics(form.get('visual_metrics'));
   if (!(audio instanceof File) || !question) {
     return NextResponse.json({ error: 'A recording is required.' }, { status: 400 });
   }
@@ -62,23 +67,54 @@ export async function POST(req: Request) {
       fillerWordCount: transcript.fillerWordCount,
     });
 
-    await supabase.from('game_sessions').insert({
-      user_id: user.id,
-      game_type: 'daily_question',
-      mode: 'solo_prompt',
-      prompt: question,
-      transcript: transcript.text,
-      audio_path: path,
-      clarity_score: feedback.clarityScore,
-      pacing_score: feedback.pacingScore,
-      structure_score: feedback.structureScore,
-      confidence_score: feedback.confidenceScore,
-      feedback: feedback.feedback,
-    });
+    let visual: VisualFeedbackResult | null = null;
+    if (cameraEnabled && visualMetrics && hasEnoughVisualData(visualMetrics)) {
+      try {
+        visual = await generateVisualFeedback({
+          activityType: 'daily_question',
+          context: question,
+          metrics: visualMetrics,
+          speechSummary: feedback.feedback,
+        });
+      } catch {
+        // Visual feedback is a bonus, never fail scoring over it.
+      }
+    }
+
+    const { data: sessionRow } = await supabase
+      .from('game_sessions')
+      .insert({
+        user_id: user.id,
+        game_type: 'daily_question',
+        mode: 'solo_prompt',
+        prompt: question,
+        transcript: transcript.text,
+        audio_path: path,
+        clarity_score: feedback.clarityScore,
+        pacing_score: feedback.pacingScore,
+        structure_score: feedback.structureScore,
+        confidence_score: feedback.confidenceScore,
+        feedback: feedback.feedback,
+        camera_enabled: cameraEnabled,
+        visual_metrics: visualMetrics ? (visualMetrics as unknown as Json) : null,
+        combined_feedback: visual ? (visual as unknown as Json) : null,
+      })
+      .select('id')
+      .single();
 
     await updateDailyMetrics(supabase, user.id);
 
-    return NextResponse.json(feedback);
+    if (cameraEnabled && visualMetrics) {
+      await saveVisualAnalysis(supabase, {
+        userId: user.id,
+        activityType: 'daily_question',
+        activityId: sessionRow?.id ?? null,
+        metrics: visualMetrics,
+        feedbackSummary: visual?.improvement,
+      });
+    }
+
+    return NextResponse.json({ ...feedback, visual });
   } catch (err) {
     console.error('[games/daily]', err);
     const message = err instanceof Error ? err.message : 'Scoring failed.';

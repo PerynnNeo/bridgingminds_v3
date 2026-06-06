@@ -59,6 +59,50 @@ export function averageMetrics(list: VisualMetrics[]): VisualMetrics | null {
   };
 }
 
+export interface VisualSummary {
+  /** Recent average eye-contact ratio 0..1. */
+  eyeContact: number;
+  /** Recent average expression variation 0..1. */
+  expression: number;
+  /** Recent average overall delivery presence 0..1. */
+  presence: number;
+  /** One friendly, rule-based next action based on the weakest area. */
+  focusNudge: string;
+  /** How many recent clips this is based on. */
+  clips: number;
+}
+
+/** Aggregate the user's recent visual-delivery clips for the dashboard (null if none). */
+export async function getVisualSummary(supabase: Client, userId: string): Promise<VisualSummary | null> {
+  const { data } = await supabase
+    .from('visual_analysis_results')
+    .select('eye_contact_ratio, expression_variation_score, delivery_presence_score')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+    .limit(20);
+
+  const rows = data ?? [];
+  if (rows.length === 0) return null;
+
+  const mean = (vals: (number | null)[]) => {
+    const nums = vals.filter((n): n is number => n != null);
+    return nums.length ? nums.reduce((a, b) => a + b, 0) / nums.length : 0;
+  };
+  const eyeContact = mean(rows.map((r) => r.eye_contact_ratio));
+  const expression = mean(rows.map((r) => r.expression_variation_score));
+  const presence = mean(rows.map((r) => r.delivery_presence_score));
+
+  const lowest = Math.min(eyeContact, expression, presence);
+  let focusNudge = 'Keep practising with the camera on to build your on-screen presence.';
+  if (lowest === eyeContact) {
+    focusNudge = 'Your eye contact dips at times. Try looking at the camera before your key points.';
+  } else if (lowest === expression) {
+    focusNudge = 'Your expression can stay flat. Add a little warmth when it fits the message.';
+  }
+
+  return { eyeContact, expression, presence, focusNudge, clips: rows.length };
+}
+
 /** Persist one clip's visual metrics for dashboard aggregation. Best-effort, never throws. */
 export async function saveVisualAnalysis(
   supabase: Client,

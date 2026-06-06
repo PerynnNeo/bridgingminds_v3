@@ -16,6 +16,7 @@ const EMPTY: DashboardData = {
   mostImprovedSkill: null,
   trends: {},
   motivationalLine: 'Let’s build your speaking confidence today.',
+  visual: null,
 };
 
 export default async function HomePage() {

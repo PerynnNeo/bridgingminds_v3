@@ -1,6 +1,7 @@
 import 'server-only';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database, SpeechProfileRow, PracticePlan, ProgressMetric } from '@/types/database';
+import { getVisualSummary, type VisualSummary } from '@/lib/vision/server';
 
 type Client = SupabaseClient<Database>;
 
@@ -20,6 +21,7 @@ export interface DashboardData {
     filler?: TrendDirection;
   };
   motivationalLine: string;
+  visual: VisualSummary | null;
 }
 
 function todayUtc(): string {
@@ -145,6 +147,7 @@ export async function getDashboardData(supabase: Client, userId: string): Promis
     { data: metrics },
     { count: attemptCount },
     dates,
+    visual,
   ] = await Promise.all([
     supabase
       .from('speech_profiles')
@@ -175,6 +178,7 @@ export async function getDashboardData(supabase: Client, userId: string): Promis
       .select('*', { count: 'exact', head: true })
       .eq('user_id', userId),
     activeDates(supabase, userId),
+    getVisualSummary(supabase, userId),
   ]);
 
   const profile = profiles?.[0] ?? null;
@@ -209,5 +213,6 @@ export async function getDashboardData(supabase: Client, userId: string): Promis
     mostImprovedSkill,
     trends,
     motivationalLine,
+    visual,
   };
 }

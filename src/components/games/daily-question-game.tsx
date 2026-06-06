@@ -13,12 +13,14 @@ import {
   Disc3,
   Square,
   RotateCcw,
+  Eye,
 } from 'lucide-react';
 import type { GameFeedback } from '@/lib/ai/game';
 import type { DailyStats } from '@/lib/games/stats';
-import { useRecorder } from '@/lib/hooks/use-recorder';
+import { useCameraCapture } from '@/lib/hooks/use-camera-capture';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { CameraStage } from '@/components/vision/camera-stage';
 import { formatScore, cn } from '@/lib/utils';
 
 export interface DailyQ {
@@ -28,6 +30,13 @@ export interface DailyQ {
 }
 
 type Status = 'idle' | 'spinning' | 'prep' | 'recording' | 'recorded' | 'submitting' | 'feedback' | 'error';
+
+interface VisualFeedback {
+  strength: string;
+  improvement: string;
+  retryInstruction: string;
+  combinedTip: string;
+}
 
 const SPEAK_SECONDS = 60;
 
@@ -148,13 +157,15 @@ export function DailyQuestionGame({
   questions,
   initialIndex,
   stats,
+  cameraEnabled = false,
 }: {
   questions: DailyQ[];
   initialIndex: number;
   stats: DailyStats;
+  cameraEnabled?: boolean;
 }) {
   const router = useRouter();
-  const rec = useRecorder();
+  const cap = useCameraCapture({ video: cameraEnabled, enabled: true });
   const safeIndex = questions.length ? initialIndex % questions.length : 0;
 
   const [status, setStatus] = useState<Status>('idle');
@@ -163,18 +174,20 @@ export function DailyQuestionGame({
   const [tipIndex, setTipIndex] = useState(safeIndex);
   const [secsLeft, setSecsLeft] = useState(SPEAK_SECONDS);
   const [feedback, setFeedback] = useState<GameFeedback | null>(null);
+  const [visual, setVisual] = useState<VisualFeedback | null>(null);
   const [error, setError] = useState('');
 
   const pick = () => questions[Math.floor(Math.random() * questions.length)];
-  const recorded = rec.audioBlob !== null && !rec.isRecording;
+  const recorded = cap.audioBlob !== null && !cap.isRecording;
 
   // Spin animation: rapidly cycle questions, then land on one.
   function spin() {
     if (questions.length === 0) return;
     setStatus('spinning');
     setFeedback(null);
+    setVisual(null);
     setError('');
-    rec.reset();
+    cap.reset();
     let ticks = 0;
     const id = setInterval(() => {
       setDisplay(pick());
@@ -193,12 +206,12 @@ export function DailyQuestionGame({
   function startSpeaking() {
     setSecsLeft(SPEAK_SECONDS);
     setError('');
-    rec.start();
+    cap.start();
     setStatus('recording');
   }
 
   function stopSpeaking() {
-    rec.stop();
+    cap.stop();
     setStatus('recorded');
   }
 
@@ -209,7 +222,7 @@ export function DailyQuestionGame({
       setSecsLeft((n) => {
         if (n <= 1) {
           clearInterval(id);
-          rec.stop();
+          cap.stop();
           setStatus('recorded');
           return 0;
         }
@@ -222,25 +235,29 @@ export function DailyQuestionGame({
 
   // Surface microphone problems (permission denied, unsupported) as an error step.
   useEffect(() => {
-    if (rec.error && (status === 'recording' || status === 'recorded')) {
-      setError(rec.error);
+    if (cap.error && (status === 'recording' || status === 'recorded')) {
+      setError(cap.error);
       setStatus('error');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rec.error]);
+  }, [cap.error]);
 
   async function submit() {
-    if (!rec.audioBlob) return;
+    if (!cap.audioBlob) return;
     setStatus('submitting');
     setError('');
     try {
       const fd = new FormData();
-      fd.append('audio', rec.audioBlob, 'answer.webm');
+      fd.append('audio', cap.audioBlob, 'answer.webm');
       fd.append('question', current.text);
+      const metrics = cap.finalizeMetrics();
+      fd.append('camera_enabled', String(Boolean(metrics)));
+      if (metrics) fd.append('visual_metrics', JSON.stringify(metrics));
       const res = await fetch('/api/games/daily', { method: 'POST', body: fd });
       const data = await res.json().catch(() => null);
       if (!res.ok) throw new Error(data?.error || 'Could not score that.');
       setFeedback(data as GameFeedback);
+      setVisual((data as { visual?: VisualFeedback | null } | null)?.visual ?? null);
       setStatus('feedback');
       router.refresh(); // refresh streak / avg / best for the next round
     } catch (e) {
@@ -258,7 +275,7 @@ export function DailyQuestionGame({
         <p className="text-sm text-charcoal/70">{error || 'Something went wrong.'}</p>
         <Button
           onClick={() => {
-            rec.reset();
+            cap.reset();
             setError('');
             setStatus('idle');
           }}
@@ -278,6 +295,7 @@ export function DailyQuestionGame({
           <p className="mt-1.5 text-lg font-bold leading-snug text-charcoal">{current.text}</p>
         </Card>
         <div className="flex flex-col items-center gap-5 py-2">
+          {cameraEnabled && <CameraStage capture={cap} className="aspect-[4/3] w-full" />}
           <CircularDial secondsLeft={SPEAK_SECONDS} total={SPEAK_SECONDS} label="Ready" />
           <p className="max-w-xs text-center text-sm text-charcoal/60">
             Take a moment to think. When you are ready, start speaking for about a minute.
@@ -307,6 +325,7 @@ export function DailyQuestionGame({
           <p className="mt-1 text-base font-semibold leading-snug text-charcoal">{current.text}</p>
         </Card>
         <div className="flex flex-col items-center gap-5 py-2">
+          {cameraEnabled && <CameraStage capture={cap} showReadiness={false} className="aspect-[4/3] w-full" />}
           <CircularDial secondsLeft={secsLeft} total={SPEAK_SECONDS} label="Recording" tone="rec" />
           <p className="text-sm text-charcoal/60">Speak naturally. We will stop automatically at zero.</p>
           <Button size="full" variant="danger" onClick={stopSpeaking}>
@@ -341,7 +360,7 @@ export function DailyQuestionGame({
               <button
                 type="button"
                 onClick={() => {
-                  rec.reset();
+                  cap.reset();
                   setStatus('prep');
                 }}
                 className="inline-flex items-center gap-1.5 text-sm font-medium text-charcoal/45"
@@ -377,6 +396,26 @@ export function DailyQuestionGame({
             <span className="text-sm text-charcoal/75">{feedback.tip}</span>
           </div>
         </Card>
+        {visual && (
+          <Card>
+            <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-charcoal/40">
+              <Eye className="h-3.5 w-3.5" />
+              Visual delivery
+            </p>
+            <p className="mt-2 flex gap-2 text-sm text-charcoal/80">
+              <span className="text-primary-500">✓</span>
+              {visual.strength}
+            </p>
+            <p className="mt-1.5 flex gap-2 text-sm text-charcoal/80">
+              <span className="text-info">→</span>
+              {visual.improvement}
+            </p>
+            <div className="mt-3 flex gap-2.5 rounded-xl bg-info/10 p-3">
+              <Lightbulb className="mt-0.5 h-4 w-4 shrink-0 text-info" />
+              <span className="text-sm text-charcoal/75">{visual.retryInstruction}</span>
+            </div>
+          </Card>
+        )}
         <Button size="full" onClick={spin}>
           <Shuffle className="h-4 w-4" />
           Spin a new question
