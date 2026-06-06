@@ -5,6 +5,9 @@ import { transcribeAudio, computeMetrics } from '@/lib/ai/transcribe';
 import { generateAttemptFeedback } from '@/lib/ai/feedback';
 import { updateDailyMetrics } from '@/lib/metrics/dashboard';
 import { USAGE_LIMITS, OVER_LIMIT_MESSAGE } from '@/config/limits';
+import { parseVisualMetrics, hasEnoughVisualData, saveVisualAnalysis } from '@/lib/vision/server';
+import { generateVisualFeedback, type VisualFeedbackResult } from '@/lib/ai/visual';
+import type { Json } from '@/types/database';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -27,6 +30,8 @@ export async function POST(req: Request) {
   const text = String(form.get('text') ?? '').trim();
   const targetSkill = String(form.get('target_skill') ?? '').trim() || undefined;
   const rawItemId = form.get('item_id');
+  const cameraEnabled = String(form.get('camera_enabled') ?? '') === 'true';
+  const visualMetrics = parseVisualMetrics(form.get('visual_metrics'));
   if (!(audio instanceof File) || !text) {
     return NextResponse.json({ error: 'A recording is required.' }, { status: 400 });
   }
@@ -94,22 +99,55 @@ export async function POST(req: Request) {
       improved = curAvg > prevAvg + 1;
     }
 
-    await supabase.from('practice_attempts').insert({
-      user_id: user.id,
-      practice_item_id: practiceItemId,
-      audio_path: path,
-      transcript: transcript.text,
-      clarity_score: feedback.clarityScore,
-      pacing_score: feedback.pacingScore,
-      pronunciation_score: feedback.pronunciationScore,
-      filler_word_count: transcript.fillerWordCount,
-      feedback: feedback.feedback,
-    });
+    // Visual delivery feedback (only when the camera was used for this attempt).
+    let visual: VisualFeedbackResult | null = null;
+    if (cameraEnabled && visualMetrics && hasEnoughVisualData(visualMetrics)) {
+      try {
+        visual = await generateVisualFeedback({
+          activityType: 'practice',
+          context: text,
+          metrics: visualMetrics,
+          speechSummary: feedback.feedback,
+        });
+      } catch {
+        // Visual feedback is a bonus, never fail the attempt over it.
+      }
+    }
+
+    const { data: attemptRow } = await supabase
+      .from('practice_attempts')
+      .insert({
+        user_id: user.id,
+        practice_item_id: practiceItemId,
+        audio_path: path,
+        transcript: transcript.text,
+        clarity_score: feedback.clarityScore,
+        pacing_score: feedback.pacingScore,
+        pronunciation_score: feedback.pronunciationScore,
+        filler_word_count: transcript.fillerWordCount,
+        feedback: feedback.feedback,
+        camera_enabled: cameraEnabled,
+        visual_metrics: visualMetrics ? (visualMetrics as unknown as Json) : null,
+        combined_feedback: visual ? (visual as unknown as Json) : null,
+      })
+      .select('id')
+      .single();
 
     // Reflect the new attempt on the dashboard (spec P8 / D7).
     await updateDailyMetrics(supabase, user.id);
 
-    return NextResponse.json({ ...feedback, improved });
+    // Record visual metrics for dashboard history (best-effort).
+    if (cameraEnabled && visualMetrics) {
+      await saveVisualAnalysis(supabase, {
+        userId: user.id,
+        activityType: 'practice',
+        activityId: attemptRow?.id ?? null,
+        metrics: visualMetrics,
+        feedbackSummary: visual?.improvement,
+      });
+    }
+
+    return NextResponse.json({ ...feedback, improved, visual });
   } catch (err) {
     console.error('[practice/attempt]', err);
     const message = err instanceof Error ? err.message : 'Scoring failed.';

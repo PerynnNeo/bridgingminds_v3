@@ -30,6 +30,8 @@ export interface PracticeCategoryDef {
   listen: boolean;
   /** Pull the user's personalised items for this category? */
   personalized: boolean;
+  /** Offer camera-based visual delivery analysis? (Not useful for single words.) */
+  camera: boolean;
   targetSkill: string;
 }
 
@@ -42,6 +44,7 @@ export const PRACTICE_CATEGORIES: PracticeCategoryDef[] = [
     icon: 'pronunciation',
     listen: true,
     personalized: true,
+    camera: false,
     targetSkill: 'pronunciation',
   },
   {
@@ -52,6 +55,7 @@ export const PRACTICE_CATEGORIES: PracticeCategoryDef[] = [
     icon: 'presentation',
     listen: false,
     personalized: false,
+    camera: true,
     targetSkill: 'clarity',
   },
   {
@@ -62,6 +66,7 @@ export const PRACTICE_CATEGORIES: PracticeCategoryDef[] = [
     icon: 'pitch',
     listen: false,
     personalized: false,
+    camera: true,
     targetSkill: 'tone',
   },
   {
@@ -72,6 +77,7 @@ export const PRACTICE_CATEGORIES: PracticeCategoryDef[] = [
     icon: 'thinking',
     listen: false,
     personalized: false,
+    camera: true,
     targetSkill: 'fluency',
   },
 ];

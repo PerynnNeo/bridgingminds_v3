@@ -47,6 +47,22 @@ async function getItems(def: ReturnType<typeof getCategory>): Promise<PracticeTa
   return [...personalized, ...fallback].slice(0, 12);
 }
 
+/** Whether the user consented to camera-based visual analysis. */
+async function videoConsent(): Promise<boolean> {
+  if (!isSupabaseConfigured()) return false;
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return false;
+  const { data } = await supabase
+    .from('profiles')
+    .select('consent_video_analysis')
+    .eq('id', user.id)
+    .maybeSingle();
+  return data?.consent_video_analysis ?? false;
+}
+
 export default async function PracticeItemPage({
   params,
 }: {
@@ -64,6 +80,7 @@ export default async function PracticeItemPage({
   if (pos > items.length) redirect(`/practice/${category}/${items.length}`);
 
   const item = items[pos - 1];
+  const cameraEnabled = def.camera ? await videoConsent() : false;
 
   return (
     <div className="space-y-5">
@@ -99,6 +116,8 @@ export default async function PracticeItemPage({
         targetSkill={item.targetSkill}
         dbId={item.dbId}
         showListen={def.listen}
+        camera={cameraEnabled}
+        category={def.slug}
       />
 
       <nav className="flex items-center justify-between pt-1">
