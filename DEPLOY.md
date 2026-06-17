@@ -36,8 +36,9 @@ Run the SQL files in `supabase/migrations/` **in order**, then the seed. Two opt
 5. `migrations/0005_visual_analysis.sql` (camera module: visual_analysis_results + camera columns)
 6. `migrations/0006_profile_visual_baseline.sql` (visual baseline on the speech profile)
 7. `migrations/0007_reading_relevance.sql` (reading-accuracy + on-topic metrics)
-8. `migrations/0008_subscriptions.sql` (Premium subscriptions / paywall)
-9. `seed.sql` (daily-question content)
+8. `migrations/0008_subscriptions.sql` (subscriptions table, reserved for future payments)
+9. `migrations/0009_analytics.sql` (analytics events + usage sessions)
+10. `seed.sql` (daily-question content)
 
 **Option B: Supabase CLI.**
 ```bash
@@ -75,9 +76,6 @@ ANTHROPIC_API_KEY=          # Claude
 ASSEMBLYAI_API_KEY=         # speech to text
 ELEVENLABS_API_KEY=         # optional: realistic debate-opponent voice (falls back to browser voice)
 ELEVENLABS_VOICE_ID=        # optional: voice id (defaults to a confident male voice)
-STRIPE_SECRET_KEY=          # optional: Premium subscriptions (without it everyone is on Free)
-STRIPE_PRICE_ID=            # the SGD 10/month recurring price id
-STRIPE_WEBHOOK_SECRET=      # webhook signing secret
 NEXT_PUBLIC_SUPABASE_URL=   # Supabase project URL
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
 SUPABASE_SERVICE_ROLE_KEY=  # server only
@@ -134,7 +132,7 @@ import { Analytics } from '@vercel/analytics/react';
 ---
 
 ## 7. Operating notes
-- **Usage limits** live in `src/config/limits.ts` (practice attempts/day, debate/day, daily question/day). Tune them to your Claude/AssemblyAI budget.
+- **Plan limits** live in `src/lib/billing/plan.ts` (free vs premium daily caps for practice, debate, daily question). Tune them to your Claude/AssemblyAI budget.
 - **Model tiers** are in `src/lib/ai/anthropic.ts` (Haiku for fast feedback, Sonnet default, Opus for deep onboarding). Drop to cheaper tiers to cut cost.
 - **Coaching cache**: `coaching_cache` (migration 0004) persists generated coaching across cold starts and users, cutting repeat Claude calls. Safe to `truncate` if you change the coaching prompt (or bump the `v3|` signature prefix in `src/lib/ai/coaching.ts`).
 - **Privacy**: recordings live in a private bucket; RLS keeps every user's data isolated; authenticated pages are disallowed in `robots.txt`.
@@ -149,19 +147,11 @@ import { Analytics } from '@vercel/analytics/react';
 
 ---
 
-## Billing / Premium (Stripe)
+## Analytics & Premium (demand validation)
 
-Premium is **optional**: with no Stripe keys, everyone stays on Free and the app works fully (just with the free daily limits). To enable paid Premium:
+Real payments are **not** wired up. The upgrade modal + free/premium limits are kept as a **demand probe**: hitting a free limit prompts an upgrade, and "Start free trial" opens a short "why do you want to upgrade?" survey (logged, no charge, then shows "coming soon"). To turn on real payments later, re-add a provider (Stripe or a Merchant of Record) behind the existing `subscriptions` table.
 
-1. Create a **Stripe account**, stay in **Test mode** to start.
-2. **Product + Price:** create a product "BridgingMinds Premium" with a **recurring price of SGD 10 / month**. Copy the **Price ID** to `STRIPE_PRICE_ID`. (The 1-month free trial is applied in code.)
-3. **API key:** copy the **Secret key** to `STRIPE_SECRET_KEY`.
-4. **Webhook:** add an endpoint at `https://<your-domain>/api/billing/webhook`, subscribe to `checkout.session.completed` and `customer.subscription.created` / `.updated` / `.deleted`, and copy the **signing secret** to `STRIPE_WEBHOOK_SECRET`.
-   - Local testing: `stripe listen --forward-to localhost:3000/api/billing/webhook` (Stripe CLI) and use the secret it prints.
-5. Test the trial with card `4242 4242 4242 4242` (any future expiry + any CVC).
-6. Go live: switch Stripe to **Live mode**, recreate the product/price/webhook there, and swap in the live keys.
-
-How it works: Stripe-hosted Checkout collects the card (it never touches the app); the **webhook is the source of truth** and writes the `subscriptions` table via the service-role key; the app reads that to gate Free vs Premium. The free-plan caps live in `src/lib/billing/plan.ts`. Singapore: SGD is supported and GST registration is only required above S$1M revenue.
+**Product analytics** (migration `0009`): time-in-app (`usage_sessions`, refreshed by a client heartbeat), a per-visit "why did you come back?" survey, the upgrade survey, and an activation funnel. View it all at **`/metrics`**, which is restricted to users whose `profiles.role = 'admin'` (set your own row to `admin` in Supabase) and needs `SUPABASE_SERVICE_ROLE_KEY` set so it can read across users.
 
 ---
 

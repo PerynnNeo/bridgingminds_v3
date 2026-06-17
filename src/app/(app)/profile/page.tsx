@@ -28,9 +28,6 @@ export default async function ProfilePage() {
   let video = false;
   let personalization = false;
   let plan: 'free' | 'premium' = 'free';
-  let subStatus: string | null = null;
-  let periodEnd: string | null = null;
-  let cancelAtEnd = false;
 
   if (isSupabaseConfigured()) {
     const supabase = await createClient();
@@ -55,14 +52,10 @@ export default async function ProfilePage() {
 
       const { data: sub } = await supabase
         .from('subscriptions')
-        .select('plan, status, current_period_end, cancel_at_period_end')
+        .select('status')
         .eq('user_id', user.id)
         .maybeSingle();
-      const premium = sub?.status === 'active' || sub?.status === 'trialing';
-      plan = premium ? 'premium' : 'free';
-      subStatus = sub?.status ?? null;
-      periodEnd = sub?.current_period_end ?? null;
-      cancelAtEnd = sub?.cancel_at_period_end ?? false;
+      plan = sub?.status === 'active' || sub?.status === 'trialing' ? 'premium' : 'free';
     }
   }
 
@@ -84,14 +77,7 @@ export default async function ProfilePage() {
         </Link>
       )}
 
-      {signedIn && (
-        <PlanCard
-          plan={plan}
-          status={subStatus}
-          periodEnd={periodEnd}
-          cancelAtPeriodEnd={cancelAtEnd}
-        />
-      )}
+      {signedIn && <PlanCard plan={plan} />}
 
       <Card>
         <CardTitle>Account</CardTitle>

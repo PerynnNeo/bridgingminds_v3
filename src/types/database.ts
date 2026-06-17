@@ -296,6 +296,40 @@ export interface Database {
         Update: Partial<Database['public']['Tables']['visual_analysis_results']['Insert']>;
         Relationships: [];
       };
+      analytics_events: {
+        Row: {
+          id: string;
+          user_id: string | null;
+          event: string;
+          properties: Json | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id?: string | null;
+          event: string;
+          properties?: Json | null;
+          created_at?: string;
+        };
+        Update: Partial<Database['public']['Tables']['analytics_events']['Insert']>;
+        Relationships: [];
+      };
+      usage_sessions: {
+        Row: {
+          id: string;
+          user_id: string;
+          started_at: string;
+          last_seen_at: string;
+        };
+        Insert: {
+          id: string;
+          user_id: string;
+          started_at?: string;
+          last_seen_at?: string;
+        };
+        Update: Partial<Database['public']['Tables']['usage_sessions']['Insert']>;
+        Relationships: [];
+      };
       subscriptions: {
         Row: {
           user_id: string;
@@ -407,3 +441,5 @@ export type DailyQuestion = Database['public']['Tables']['daily_questions']['Row
 export type ProgressMetric = Database['public']['Tables']['progress_metrics']['Row'];
 export type VisualAnalysisResult = Database['public']['Tables']['visual_analysis_results']['Row'];
 export type Subscription = Database['public']['Tables']['subscriptions']['Row'];
+export type AnalyticsEvent = Database['public']['Tables']['analytics_events']['Row'];
+export type UsageSession = Database['public']['Tables']['usage_sessions']['Row'];

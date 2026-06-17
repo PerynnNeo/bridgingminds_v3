@@ -1,53 +1,14 @@
 'use client';
 
-import { useState } from 'react';
 import { Crown } from 'lucide-react';
 import { Card, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useUpgrade } from './upgrade-provider';
 
-export function PlanCard({
-  plan,
-  status,
-  periodEnd,
-  cancelAtPeriodEnd,
-}: {
-  plan: 'free' | 'premium';
-  status?: string | null;
-  periodEnd?: string | null;
-  cancelAtPeriodEnd?: boolean;
-}) {
+export function PlanCard({ plan }: { plan: 'free' | 'premium' }) {
   const { open } = useUpgrade();
-  const [loading, setLoading] = useState(false);
-
-  async function manage() {
-    setLoading(true);
-    try {
-      const res = await fetch('/api/billing/portal', { method: 'POST' });
-      const data = await res.json().catch(() => null);
-      if (res.ok && data?.url) {
-        window.location.href = data.url;
-        return;
-      }
-    } catch {
-      // fall through
-    }
-    setLoading(false);
-  }
-
-  const dateStr = periodEnd
-    ? new Date(periodEnd).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })
-    : null;
 
   if (plan === 'premium') {
-    const line =
-      status === 'trialing' && dateStr
-        ? `Free trial now, then SGD 10/month from ${dateStr}.`
-        : cancelAtPeriodEnd && dateStr
-          ? `Premium until ${dateStr}, then it ends.`
-          : dateStr
-            ? `SGD 10/month, renews ${dateStr}.`
-            : 'You have Premium access.';
     return (
       <Card>
         <div className="flex items-center justify-between">
@@ -57,10 +18,7 @@ export function PlanCard({
             Premium
           </span>
         </div>
-        <p className="mt-2 text-sm text-charcoal/70">{line}</p>
-        <Button variant="outline" size="sm" className="mt-3" disabled={loading} onClick={manage}>
-          {loading ? 'Opening…' : 'Manage subscription'}
-        </Button>
+        <p className="mt-2 text-sm text-charcoal/70">You have Premium access.</p>
       </Card>
     );
   }
