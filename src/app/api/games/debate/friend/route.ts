@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase/server';
 import { transcribeAudio } from '@/lib/ai/transcribe';
 import { generateFriendDebateFeedback } from '@/lib/ai/game';
 import { updateDailyMetrics } from '@/lib/metrics/dashboard';
-import { USAGE_LIMITS, OVER_LIMIT_MESSAGE } from '@/config/limits';
+import { getPlanLimits } from '@/lib/billing/plan';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -30,6 +30,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Both players need to record.' }, { status: 400 });
   }
 
+  const { plan, limits } = await getPlanLimits(supabase, user.id);
   const today = new Date().toISOString().slice(0, 10);
   const { count } = await supabase
     .from('game_sessions')
@@ -37,8 +38,13 @@ export async function POST(req: Request) {
     .eq('user_id', user.id)
     .eq('game_type', 'debate')
     .gte('created_at', `${today}T00:00:00.000Z`);
-  if ((count ?? 0) >= USAGE_LIMITS.debateSessionsPerDay) {
-    return NextResponse.json({ error: OVER_LIMIT_MESSAGE }, { status: 429 });
+  if ((count ?? 0) >= limits.debateSessionsPerDay) {
+    return NextResponse.json(
+      plan === 'free'
+        ? { error: 'That is your free debate for today. Upgrade to Premium for more.', upgrade: true }
+        : { error: "You have reached today's debate limit. Come back tomorrow." },
+      { status: 429 },
+    );
   }
 
   try {
@@ -77,7 +83,6 @@ export async function POST(req: Request) {
     return NextResponse.json(result);
   } catch (err) {
     console.error('[games/debate/friend]', err);
-    const message = err instanceof Error ? err.message : 'Something went wrong.';
-    return NextResponse.json({ error: `We couldn't process that. ${message}` }, { status: 500 });
+    return NextResponse.json({ error: 'We could not process that. Please try again.' }, { status: 500 });
   }
 }

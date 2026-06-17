@@ -296,6 +296,34 @@ export interface Database {
         Update: Partial<Database['public']['Tables']['visual_analysis_results']['Insert']>;
         Relationships: [];
       };
+      subscriptions: {
+        Row: {
+          user_id: string;
+          plan: string;
+          status: string | null;
+          stripe_customer_id: string | null;
+          stripe_subscription_id: string | null;
+          stripe_price_id: string | null;
+          current_period_end: string | null;
+          trial_end: string | null;
+          cancel_at_period_end: boolean;
+          updated_at: string;
+        };
+        Insert: {
+          user_id: string;
+          plan?: string;
+          status?: string | null;
+          stripe_customer_id?: string | null;
+          stripe_subscription_id?: string | null;
+          stripe_price_id?: string | null;
+          current_period_end?: string | null;
+          trial_end?: string | null;
+          cancel_at_period_end?: boolean;
+          updated_at?: string;
+        };
+        Update: Partial<Database['public']['Tables']['subscriptions']['Insert']>;
+        Relationships: [];
+      };
       daily_questions: {
         Row: {
           id: string;
@@ -378,3 +406,4 @@ export type GameSession = Database['public']['Tables']['game_sessions']['Row'];
 export type DailyQuestion = Database['public']['Tables']['daily_questions']['Row'];
 export type ProgressMetric = Database['public']['Tables']['progress_metrics']['Row'];
 export type VisualAnalysisResult = Database['public']['Tables']['visual_analysis_results']['Row'];
+export type Subscription = Database['public']['Tables']['subscriptions']['Row'];

@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase/server';
 import { transcribeAudio, computeMetrics } from '@/lib/ai/transcribe';
 import { generateDailyQuestionFeedback } from '@/lib/ai/game';
 import { updateDailyMetrics } from '@/lib/metrics/dashboard';
-import { USAGE_LIMITS, OVER_LIMIT_MESSAGE } from '@/config/limits';
+import { getPlanLimits } from '@/lib/billing/plan';
 import {
   parseVisualMetrics,
   hasEnoughVisualData,
@@ -16,8 +16,6 @@ import type { Json } from '@/types/database';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
-
-const DAILY_LIMIT = USAGE_LIMITS.dailyQuestion.mainPerDay + USAGE_LIMITS.dailyQuestion.retries;
 
 export async function POST(req: Request) {
   const supabase = await createClient();
@@ -41,6 +39,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'A recording is required.' }, { status: 400 });
   }
 
+  const { plan, limits } = await getPlanLimits(supabase, user.id);
   const today = new Date().toISOString().slice(0, 10);
   const { count } = await supabase
     .from('game_sessions')
@@ -48,8 +47,16 @@ export async function POST(req: Request) {
     .eq('user_id', user.id)
     .eq('game_type', 'daily_question')
     .gte('created_at', `${today}T00:00:00.000Z`);
-  if ((count ?? 0) >= DAILY_LIMIT) {
-    return NextResponse.json({ error: OVER_LIMIT_MESSAGE }, { status: 429 });
+  if ((count ?? 0) >= limits.dailyQuestionPerDay) {
+    return NextResponse.json(
+      plan === 'free'
+        ? {
+            error: 'That is your free daily question for today. Upgrade to Premium for more.',
+            upgrade: true,
+          }
+        : { error: "You have reached today's daily-question limit. Come back tomorrow." },
+      { status: 429 },
+    );
   }
 
   try {
@@ -124,7 +131,6 @@ export async function POST(req: Request) {
     return NextResponse.json({ ...feedback, visual });
   } catch (err) {
     console.error('[games/daily]', err);
-    const message = err instanceof Error ? err.message : 'Scoring failed.';
-    return NextResponse.json({ error: `We couldn't score that. ${message}` }, { status: 500 });
+    return NextResponse.json({ error: 'We could not score that. Please try again.' }, { status: 500 });
   }
 }

@@ -34,6 +34,8 @@ export function speak(text: string, opts: SpeakOptions = {}): void {
 }
 
 let currentAudio: HTMLAudioElement | null = null;
+// Cache generated audio by text so repeats (e.g. "Hear again") replay without re-billing.
+const speechCache = new Map<string, string>();
 
 export function stopSpeaking(): void {
   if (isTTSSupported()) window.speechSynthesis.cancel();
@@ -51,18 +53,20 @@ export function stopSpeaking(): void {
 export async function playSpeech(text: string, opts: SpeakOptions = {}): Promise<void> {
   stopSpeaking();
   try {
-    const res = await fetch('/api/tts', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text }),
-    });
-    if (!res.ok) throw new Error('tts unavailable');
-    const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
+    let url = speechCache.get(text);
+    if (!url) {
+      const res = await fetch('/api/tts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text }),
+      });
+      if (!res.ok) throw new Error('tts unavailable');
+      url = URL.createObjectURL(await res.blob());
+      speechCache.set(text, url);
+    }
     const audio = new Audio(url);
     currentAudio = audio;
     audio.onended = () => {
-      URL.revokeObjectURL(url);
       if (currentAudio === audio) currentAudio = null;
       opts.onEnd?.();
     };

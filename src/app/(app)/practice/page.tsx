@@ -3,12 +3,10 @@ import { Volume2, Megaphone, Rocket, Zap } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { createClient } from '@/lib/supabase/server';
 import { isSupabaseConfigured } from '@/lib/supabase/env';
-import { USAGE_LIMITS } from '@/config/limits';
+import { getPlanLimits, PLAN_LIMITS } from '@/lib/billing/plan';
 import { PRACTICE_CATEGORIES, getLibraryItems, type CategoryIcon } from '@/lib/practice/library';
 
 export const dynamic = 'force-dynamic';
-
-const LIMIT = USAGE_LIMITS.practiceAttemptsPerDay;
 
 const ICONS: Record<CategoryIcon, typeof Volume2> = {
   pronunciation: Volume2,
@@ -60,6 +58,7 @@ function GoalRing({ value, max }: { value: number; max: number }) {
 
 export default async function PracticePage() {
   let usedToday = 0;
+  let limit = PLAN_LIMITS.free.practiceAttemptsPerDay;
 
   if (isSupabaseConfigured()) {
     const supabase = await createClient();
@@ -74,15 +73,16 @@ export default async function PracticePage() {
         .eq('user_id', user.id)
         .gte('created_at', `${today}T00:00:00.000Z`);
       usedToday = count ?? 0;
+      limit = (await getPlanLimits(supabase, user.id)).limits.practiceAttemptsPerDay;
     }
   }
 
   const microcopy =
     usedToday === 0
       ? 'Record your first practice of the day.'
-      : usedToday >= LIMIT
+      : usedToday >= limit
         ? 'All done for today, brilliant work!'
-        : `${usedToday} done so far. ${LIMIT - usedToday} more to go today.`;
+        : `${usedToday} done so far. ${limit - usedToday} more to go today.`;
 
   return (
     <div className="space-y-5">
@@ -92,7 +92,7 @@ export default async function PracticePage() {
       </header>
 
       <Card className="flex items-center gap-4 bg-gradient-to-br from-primary-50 to-white">
-        <GoalRing value={usedToday} max={LIMIT} />
+        <GoalRing value={usedToday} max={limit} />
         <div className="min-w-0">
           <p className="text-sm font-semibold text-charcoal">Today&rsquo;s practice</p>
           <p className="mt-0.5 text-xs text-charcoal/55">{microcopy}</p>

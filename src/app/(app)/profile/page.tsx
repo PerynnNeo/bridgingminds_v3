@@ -4,6 +4,7 @@ import { Card, CardTitle } from '@/components/ui/card';
 import { LogoutButton } from '@/components/auth/logout-button';
 import { ConsentSettings } from '@/components/profile/consent-settings';
 import { RetakeOnboardingButton, ReplayTutorialButton } from '@/components/profile/account-actions';
+import { PlanCard } from '@/components/billing/plan-card';
 import { createClient } from '@/lib/supabase/server';
 import { isSupabaseConfigured } from '@/lib/supabase/env';
 
@@ -26,6 +27,10 @@ export default async function ProfilePage() {
   let onboarded = false;
   let video = false;
   let personalization = false;
+  let plan: 'free' | 'premium' = 'free';
+  let subStatus: string | null = null;
+  let periodEnd: string | null = null;
+  let cancelAtEnd = false;
 
   if (isSupabaseConfigured()) {
     const supabase = await createClient();
@@ -47,6 +52,17 @@ export default async function ProfilePage() {
       onboarded = profile?.onboarding_completed ?? false;
       video = profile?.consent_video_analysis ?? false;
       personalization = profile?.consent_personalization ?? false;
+
+      const { data: sub } = await supabase
+        .from('subscriptions')
+        .select('plan, status, current_period_end, cancel_at_period_end')
+        .eq('user_id', user.id)
+        .maybeSingle();
+      const premium = sub?.status === 'active' || sub?.status === 'trialing';
+      plan = premium ? 'premium' : 'free';
+      subStatus = sub?.status ?? null;
+      periodEnd = sub?.current_period_end ?? null;
+      cancelAtEnd = sub?.cancel_at_period_end ?? false;
     }
   }
 
@@ -66,6 +82,15 @@ export default async function ProfilePage() {
             <ChevronRight className="h-5 w-5 shrink-0 text-charcoal/30" />
           </Card>
         </Link>
+      )}
+
+      {signedIn && (
+        <PlanCard
+          plan={plan}
+          status={subStatus}
+          periodEnd={periodEnd}
+          cancelAtPeriodEnd={cancelAtEnd}
+        />
       )}
 
       <Card>

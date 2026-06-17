@@ -21,6 +21,7 @@ import { useCameraCapture } from '@/lib/hooks/use-camera-capture';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { CameraStage } from '@/components/vision/camera-stage';
+import { useUpgrade } from '@/components/billing/upgrade-provider';
 import { formatScore, cn } from '@/lib/utils';
 
 export interface DailyQ {
@@ -166,6 +167,7 @@ export function DailyQuestionGame({
 }) {
   const router = useRouter();
   const cap = useCameraCapture({ video: cameraEnabled, enabled: true });
+  const { open: openUpgrade } = useUpgrade();
   const safeIndex = questions.length ? initialIndex % questions.length : 0;
 
   const [status, setStatus] = useState<Status>('idle');
@@ -255,7 +257,14 @@ export function DailyQuestionGame({
       if (metrics) fd.append('visual_metrics', JSON.stringify(metrics));
       const res = await fetch('/api/games/daily', { method: 'POST', body: fd });
       const data = await res.json().catch(() => null);
-      if (!res.ok) throw new Error(data?.error || 'Could not score that.');
+      if (!res.ok) {
+        if (data?.upgrade) {
+          openUpgrade();
+          setStatus('recorded');
+          return;
+        }
+        throw new Error(data?.error || 'Could not score that.');
+      }
       setFeedback(data as GameFeedback);
       setVisual((data as { visual?: VisualFeedback | null } | null)?.visual ?? null);
       setStatus('feedback');

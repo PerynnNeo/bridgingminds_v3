@@ -6,6 +6,7 @@ import type { AttemptFeedback } from '@/lib/ai/types';
 import { useCameraCapture } from '@/lib/hooks/use-camera-capture';
 import { speak } from '@/lib/tts';
 import { CameraStage } from '@/components/vision/camera-stage';
+import { useUpgrade } from '@/components/billing/upgrade-provider';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { RecordButton } from '@/components/ui/record-button';
@@ -49,6 +50,7 @@ export function PracticeRecorder({
   category?: string;
 }) {
   const cap = useCameraCapture({ video: camera, enabled: true });
+  const { open: openUpgrade } = useUpgrade();
   const [status, setStatus] = useState<Status>('idle');
   const [feedback, setFeedback] = useState<AttemptFeedback | null>(null);
   const [visual, setVisual] = useState<VisualFeedback | null>(null);
@@ -75,7 +77,14 @@ export function PracticeRecorder({
 
       const res = await fetch('/api/practice/attempt', { method: 'POST', body: fd });
       const data = await res.json().catch(() => null);
-      if (!res.ok) throw new Error(data?.error || 'Could not score that attempt.');
+      if (!res.ok) {
+        if (data?.upgrade) {
+          openUpgrade();
+          setStatus('idle');
+          return;
+        }
+        throw new Error(data?.error || 'Could not score that attempt.');
+      }
       setFeedback(data as AttemptFeedback);
       setVisual((data as { visual?: VisualFeedback | null } | null)?.visual ?? null);
       setImproved((data as { improved?: boolean | null } | null)?.improved ?? null);

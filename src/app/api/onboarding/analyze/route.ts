@@ -208,9 +208,8 @@ export async function POST(req: Request) {
         () => {},
         () => {},
       );
-    const message = err instanceof Error ? err.message : 'Analysis failed.';
     return NextResponse.json(
-      { error: `We couldn't finish your analysis. ${message}` },
+      { error: 'We could not finish your analysis. Please try again.' },
       { status: 500 },
     );
   }

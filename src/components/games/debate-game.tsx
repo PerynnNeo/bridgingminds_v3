@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { RecordButton } from '@/components/ui/record-button';
 import { LoadingState, ErrorState } from '@/components/ui/states';
 import { CameraStage } from '@/components/vision/camera-stage';
+import { useUpgrade } from '@/components/billing/upgrade-provider';
 import { cn } from '@/lib/utils';
 
 interface VisualFeedback {
@@ -114,6 +115,7 @@ export function DebateGame({
   cameraEnabled?: boolean;
 }) {
   const cap = useCameraCapture({ video: cameraEnabled && initialMode === 'ai', enabled: true });
+  const { open: openUpgrade } = useUpgrade();
   const [step, setStep] = useState<Step>(initialMode === 'human' ? 'friend-setup' : 'prep');
   const [topic, setTopic] = useState(initialTopic);
   const [side, setSide] = useState<Side>(initialSide);
@@ -148,7 +150,11 @@ export function DebateGame({
   async function post(url: string, fd: FormData) {
     const res = await fetch(url, { method: 'POST', body: fd });
     const data = await res.json().catch(() => null);
-    if (!res.ok) throw new Error(data?.error || 'Something went wrong.');
+    if (!res.ok) {
+      const err = new Error(data?.error || 'Something went wrong.') as Error & { upgrade?: boolean };
+      err.upgrade = Boolean(data?.upgrade);
+      throw err;
+    }
     return data;
   }
 
@@ -169,6 +175,11 @@ export function DebateGame({
       setStep('counterpoint');
       void playSpeech(data.counterpoint);
     } catch (e) {
+      if ((e as { upgrade?: boolean }).upgrade) {
+        openUpgrade();
+        setStep('prep');
+        return;
+      }
       setError(e instanceof Error ? e.message : 'Something went wrong.');
       setStep('error');
     }

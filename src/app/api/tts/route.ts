@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { getUserPlan } from '@/lib/billing/plan';
 
 export const runtime = 'nodejs';
 export const maxDuration = 30;
@@ -25,6 +26,11 @@ export async function POST(req: Request) {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'You are not signed in.' }, { status: 401 });
+
+  // Realistic voice is a Premium perk; free users fall back to the browser voice.
+  if ((await getUserPlan(supabase, user.id)) !== 'premium') {
+    return NextResponse.json({ error: 'Premium feature' }, { status: 403 });
+  }
 
   let body: { text?: string };
   try {

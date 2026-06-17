@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase/server';
 import { transcribeAudio, computeMetrics } from '@/lib/ai/transcribe';
 import { generateAttemptFeedback } from '@/lib/ai/feedback';
 import { updateDailyMetrics } from '@/lib/metrics/dashboard';
-import { USAGE_LIMITS, OVER_LIMIT_MESSAGE } from '@/config/limits';
+import { getPlanLimits } from '@/lib/billing/plan';
 import {
   parseVisualMetrics,
   hasEnoughVisualData,
@@ -42,15 +42,24 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'A recording is required.' }, { status: 400 });
   }
 
-  // Usage limit (spec §9.2).
+  // Plan-aware daily usage limit.
+  const { plan, limits } = await getPlanLimits(supabase, user.id);
   const today = new Date().toISOString().slice(0, 10);
   const { count } = await supabase
     .from('practice_attempts')
     .select('*', { count: 'exact', head: true })
     .eq('user_id', user.id)
     .gte('created_at', `${today}T00:00:00.000Z`);
-  if ((count ?? 0) >= USAGE_LIMITS.practiceAttemptsPerDay) {
-    return NextResponse.json({ error: OVER_LIMIT_MESSAGE }, { status: 429 });
+  if ((count ?? 0) >= limits.practiceAttemptsPerDay) {
+    return NextResponse.json(
+      plan === 'free'
+        ? {
+            error: 'You have used your free practice for today. Upgrade to Premium for much more.',
+            upgrade: true,
+          }
+        : { error: "You have reached today's practice limit. Come back tomorrow." },
+      { status: 429 },
+    );
   }
 
   // Link a personalised DB item when one was provided (RLS verifies ownership).
@@ -159,9 +168,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ ...feedback, improved, visual });
   } catch (err) {
     console.error('[practice/attempt]', err);
-    const message = err instanceof Error ? err.message : 'Scoring failed.';
     return NextResponse.json(
-      { error: `We couldn't score that attempt. ${message}` },
+      { error: 'We could not score that attempt. Please try again.' },
       { status: 500 },
     );
   }
