@@ -114,7 +114,17 @@ export function useVisionAnalyzer(): VisionAnalyzer {
         tickRef.current += 1;
         const sample = extractSample(faceResult, handResult, brightnessOf(video));
         if (accumulate) samplesRef.current.push(sample);
-        setReadiness(readinessFrom(sample));
+        const newReadiness = readinessFrom(sample);
+        setReadiness((prev) => {
+          if (
+            prev.cameraReady === newReadiness.cameraReady &&
+            prev.faceVisible === newReadiness.faceVisible &&
+            prev.lightingOk === newReadiness.lightingOk
+          ) {
+            return prev;
+          }
+          return newReadiness;
+        });
       } catch {
         // Skip a bad frame, never throw out of the loop.
       }
