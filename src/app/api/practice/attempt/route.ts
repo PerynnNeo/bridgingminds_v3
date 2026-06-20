@@ -198,6 +198,43 @@ export async function POST(req: Request) {
       }
     }
 
+    // Add useful phrases and suggested phrases to personalized practice (best-effort).
+    const phrasesToAdd = [
+      ...(feedback.usefulPhrases ?? []),
+      ...(feedback.suggestedPhrases ?? []),
+    ];
+    if (phrasesToAdd.length > 0) {
+      try {
+        const { data: existing } = await supabase
+          .from('practice_items')
+          .select('text')
+          .eq('user_id', user.id)
+          .eq('item_type', 'phrase')
+          .in(
+            'text',
+            phrasesToAdd.map((p) => p.toLowerCase()),
+          );
+        const existingSet = new Set((existing ?? []).map((r) => r.text.toLowerCase()));
+        const newPhrases = phrasesToAdd.filter(
+          (p) => !existingSet.has(p.toLowerCase()),
+        );
+        if (newPhrases.length > 0) {
+          await supabase
+            .from('practice_items')
+            .insert(
+              newPhrases.map((phrase) => ({
+                user_id: user.id,
+                item_type: 'phrase',
+                text: phrase,
+                target_skill: 'clarity',
+              })),
+            );
+        }
+      } catch {
+        // Adding phrases is a bonus, never fail the attempt over it.
+      }
+    }
+
     return NextResponse.json({ ...feedback, improved, visual });
   } catch (err) {
     console.error('[practice/attempt]', err);

@@ -14,7 +14,9 @@ Rules:
 - If "assessRelevance" is true, also set "relevanceScore" (0 to 100): did they actually answer the prompt with real, on-topic substance, or ramble, avoid it, or make little sense? About staying on topic, never whether their opinion is "correct". Only include relevanceScore when assessRelevance is true.
 - "feedback" is 1 to 2 warm sentences referencing what they did.
 - "tip" is ONE concrete, doable improvement for next time.
-- "mispronunciations" is a list (0-3) of specific words or sounds from the target text that were clearly mispronounced or unclear. Only include actual words that were hard to understand or pronounced incorrectly. Empty list if pronunciation was clear.`;
+- "mispronunciations" is a list (0-3) of specific words or sounds from the target text that were clearly mispronounced or unclear. Only include actual words that were hard to understand or pronounced incorrectly. Empty list if pronunciation was clear.
+- "usefulPhrases" is a list (0-2) of natural, well-delivered phrases or sentences they said in their response that are worth practicing and reusing. Only include phrases they actually said (not from target text) that sound polished or useful for future speaking. Empty list if none stand out.
+- "suggestedPhrases" is a list (0-3) of short, practical phrases they could practice that would complement their speech style and address any gaps (e.g., transitions, confidence markers, topic launchers). These should feel natural for a youth speaker.`;
 
 const SCHEMA: Record<string, unknown> = {
   type: 'object',
@@ -28,6 +30,8 @@ const SCHEMA: Record<string, unknown> = {
     feedback: { type: 'string' },
     tip: { type: 'string' },
     mispronunciations: { type: 'array', items: { type: 'string' } },
+    usefulPhrases: { type: 'array', items: { type: 'string' } },
+    suggestedPhrases: { type: 'array', items: { type: 'string' } },
   },
   required: [
     'clarityScore',
@@ -37,6 +41,8 @@ const SCHEMA: Record<string, unknown> = {
     'feedback',
     'tip',
     'mispronunciations',
+    'usefulPhrases',
+    'suggestedPhrases',
   ],
 };
 
