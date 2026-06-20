@@ -54,7 +54,7 @@ export const PRACTICE_CATEGORIES: PracticeCategoryDef[] = [
     blurb: 'Reusable phrases that give any talk a clear shape. Learn one, then say it smoothly.',
     icon: 'presentation',
     listen: false,
-    personalized: true,
+    personalized: false,
     camera: true,
     targetSkill: 'clarity',
   },
