@@ -104,6 +104,7 @@ export function useVisionAnalyzer(): VisionAnalyzer {
       if (ts <= lastTsRef.current) ts = lastTsRef.current + 1;
       lastTsRef.current = ts;
       try {
+        if (!lm || !video) return;
         const faceResult = lm.detectForVideo(video, ts);
         // The hand model is heavier, so run it at half the face rate and reuse the
         // last result on skipped ticks. Keeps gesture stable on slower devices.
