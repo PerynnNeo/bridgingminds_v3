@@ -18,6 +18,7 @@ import {
   Smile,
   Brain,
   Quote,
+  ChevronDown,
   type LucideIcon,
 } from 'lucide-react';
 import type { ItemCoaching } from '@/lib/ai/coaching';
@@ -82,6 +83,7 @@ export function CoachingCard({
 }) {
   const [coaching, setCoaching] = useState<ItemCoaching | null>(initialCoaching ?? null);
   const [failed, setFailed] = useState(false);
+  const [expanded, setExpanded] = useState(false);
 
   useEffect(() => {
     if (initialCoaching) return;
@@ -141,33 +143,45 @@ export function CoachingCard({
             </div>
           )}
 
-          <ul className="space-y-3">
-            {coaching.tips.map((tip, i) => {
-              const forYou = tip.label.toLowerCase().trim() === 'for you';
-              const Icon = forYou ? Target : iconFor(tip.label);
-              return (
-                <li
-                  key={i}
-                  className={cn('flex gap-3', forYou && 'rounded-xl bg-primary-50 p-3')}
-                >
-                  <Icon
-                    className={cn('mt-0.5 h-4 w-4 shrink-0', forYou ? 'text-primary-600' : 'text-charcoal/35')}
-                  />
-                  <div className="min-w-0">
-                    <p
-                      className={cn(
-                        'text-[11px] font-bold uppercase tracking-wide',
-                        forYou ? 'text-primary-600' : 'text-charcoal/45',
-                      )}
-                    >
-                      {tip.label}
-                    </p>
-                    <p className="mt-0.5 text-sm leading-snug text-charcoal/80">{tip.text}</p>
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
+          <button
+            onClick={() => setExpanded(!expanded)}
+            className="flex w-full items-center justify-between rounded-lg border border-charcoal/10 bg-charcoal/2 px-3 py-2.5 text-left hover:bg-charcoal/5 transition-colors"
+          >
+            <span className="text-sm font-semibold text-charcoal">Tips ({coaching.tips.length})</span>
+            <ChevronDown
+              className={cn('h-4 w-4 text-charcoal/40 transition-transform', expanded && 'rotate-180')}
+            />
+          </button>
+
+          {expanded && (
+            <ul className="space-y-3">
+              {coaching.tips.map((tip, i) => {
+                const forYou = tip.label.toLowerCase().trim() === 'for you';
+                const Icon = forYou ? Target : iconFor(tip.label);
+                return (
+                  <li
+                    key={i}
+                    className={cn('flex gap-3', forYou && 'rounded-xl bg-primary-50 p-3')}
+                  >
+                    <Icon
+                      className={cn('mt-0.5 h-4 w-4 shrink-0', forYou ? 'text-primary-600' : 'text-charcoal/35')}
+                    />
+                    <div className="min-w-0">
+                      <p
+                        className={cn(
+                          'text-[11px] font-bold uppercase tracking-wide',
+                          forYou ? 'text-primary-600' : 'text-charcoal/45',
+                        )}
+                      >
+                        {tip.label}
+                      </p>
+                      <p className="mt-0.5 text-sm leading-snug text-charcoal/80">{tip.text}</p>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
         </div>
       )}
     </Card>
