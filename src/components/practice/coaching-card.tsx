@@ -22,7 +22,6 @@ import {
 } from 'lucide-react';
 import type { ItemCoaching } from '@/lib/ai/coaching';
 import { Card } from '@/components/ui/card';
-import { StepGuide, type StepGuideItem } from '@/components/ui/step-guide';
 import { cn } from '@/lib/utils';
 
 const LABEL_ICON: Record<string, LucideIcon> = {
@@ -83,7 +82,6 @@ export function CoachingCard({
 }) {
   const [coaching, setCoaching] = useState<ItemCoaching | null>(initialCoaching ?? null);
   const [failed, setFailed] = useState(false);
-  const [showDetails, setShowDetails] = useState(false);
 
   useEffect(() => {
     if (initialCoaching) return;
@@ -108,12 +106,6 @@ export function CoachingCard({
     ? (coaching.stress.split(/[^a-zA-Z]+/).find((t) => t.length > 1 && t === t.toUpperCase()) ??
         coaching.stress).toUpperCase()
     : '';
-
-  const steps: StepGuideItem[] =
-    coaching?.tips.map((tip) => ({
-      title: tip.label,
-      body: tip.text,
-    })) ?? [];
 
   return (
     <Card>
@@ -149,23 +141,33 @@ export function CoachingCard({
             </div>
           )}
 
-          {!showDetails && coaching.tips.length > 0 && (
-            <button
-              type="button"
-              onClick={() => setShowDetails(true)}
-              className="w-full rounded-xl bg-primary-50 px-3 py-2 text-sm font-medium text-primary-700 hover:bg-primary-100 transition-colors"
-            >
-              Show tips ({coaching.tips.length})
-            </button>
-          )}
-
-          {showDetails && steps.length > 0 && (
-            <StepGuide
-              steps={steps}
-              onComplete={() => setShowDetails(false)}
-              showDismiss={true}
-            />
-          )}
+          <ul className="space-y-3">
+            {coaching.tips.map((tip, i) => {
+              const forYou = tip.label.toLowerCase().trim() === 'for you';
+              const Icon = forYou ? Target : iconFor(tip.label);
+              return (
+                <li
+                  key={i}
+                  className={cn('flex gap-3', forYou && 'rounded-xl bg-primary-50 p-3')}
+                >
+                  <Icon
+                    className={cn('mt-0.5 h-4 w-4 shrink-0', forYou ? 'text-primary-600' : 'text-charcoal/35')}
+                  />
+                  <div className="min-w-0">
+                    <p
+                      className={cn(
+                        'text-[11px] font-bold uppercase tracking-wide',
+                        forYou ? 'text-primary-600' : 'text-charcoal/45',
+                      )}
+                    >
+                      {tip.label}
+                    </p>
+                    <p className="mt-0.5 text-sm leading-snug text-charcoal/80">{tip.text}</p>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
         </div>
       )}
     </Card>

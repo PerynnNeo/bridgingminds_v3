@@ -1,16 +1,14 @@
 'use client';
 
-import { useState } from 'react';
 import { ArrowRight } from 'lucide-react';
 import type { CameraCapture } from '@/lib/hooks/use-camera-capture';
 import { Button } from '@/components/ui/button';
-import { StepGuide } from '@/components/ui/step-guide';
 import { CameraStage } from './camera-stage';
 
 const TIPS = [
-  { title: 'Position your phone', body: 'Put your phone at eye level and look at the lens, not at yourself on screen.' },
-  { title: 'Keep it steady', body: 'If you can, rest your phone on a surface so it stays steady. Holding it is fine too.' },
-  { title: 'Good lighting', body: 'Make sure your face is visible and the room is not too dark.' },
+  'Put your phone at eye level and look at the lens, not at yourself on screen.',
+  'If you can, rest your phone on a surface so it stays steady. Holding it is fine too.',
+  'Make sure your face is visible and the room is not too dark.',
 ];
 
 /**
@@ -19,8 +17,6 @@ const TIPS = [
  * unavailable (they can continue with audio only).
  */
 export function CameraSetup({ capture, onReady }: { capture: CameraCapture; onReady: () => void }) {
-  const [showTips, setShowTips] = useState(!capture.cameraUnavailable);
-
   return (
     <div className="space-y-5">
       <header>
@@ -34,12 +30,15 @@ export function CameraSetup({ capture, onReady }: { capture: CameraCapture; onRe
 
       <CameraStage capture={capture} className="aspect-[3/4] w-full" />
 
-      {!capture.cameraUnavailable && showTips && (
-        <StepGuide
-          steps={TIPS}
-          onComplete={() => setShowTips(false)}
-          showDismiss
-        />
+      {!capture.cameraUnavailable && (
+        <ul className="space-y-2">
+          {TIPS.map((t) => (
+            <li key={t} className="flex gap-2 text-sm text-charcoal/70">
+              <span className="text-primary-500">•</span>
+              {t}
+            </li>
+          ))}
+        </ul>
       )}
 
       <Button size="full" className="w-full" onClick={onReady}>
