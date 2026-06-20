@@ -165,6 +165,96 @@ export async function POST(req: Request) {
       });
     }
 
+    // Auto-add mispronounced words to pronunciation practice (best-effort).
+    if (feedback.mispronunciations && feedback.mispronunciations.length > 0) {
+      try {
+        const { data: existing } = await supabase
+          .from('practice_items')
+          .select('text')
+          .eq('user_id', user.id)
+          .eq('item_type', 'word')
+          .in('text', feedback.mispronunciations.map((w) => w.toLowerCase()));
+        const existingSet = new Set((existing ?? []).map((r) => r.text.toLowerCase()));
+        const newWords = feedback.mispronunciations.filter(
+          (w) => !existingSet.has(w.toLowerCase())
+        );
+        if (newWords.length > 0) {
+          await supabase
+            .from('practice_items')
+            .insert(
+              newWords.map((word) => ({
+                user_id: user.id,
+                item_type: 'word',
+                text: word,
+                target_skill: 'pronunciation',
+              }))
+            );
+        }
+      } catch {
+        // Bonus feature, don't fail the attempt over it.
+      }
+    }
+
+    // Auto-add useful & suggested phrases to personalized practice (best-effort).
+    if (feedback.usefulPhrases && feedback.usefulPhrases.length > 0) {
+      try {
+        const { data: existing } = await supabase
+          .from('practice_items')
+          .select('text')
+          .eq('user_id', user.id)
+          .eq('item_type', 'phrase')
+          .in('text', feedback.usefulPhrases.map((p) => p.toLowerCase()));
+        const existingSet = new Set((existing ?? []).map((r) => r.text.toLowerCase()));
+        const newPhrases = feedback.usefulPhrases.filter(
+          (p) => !existingSet.has(p.toLowerCase())
+        );
+        if (newPhrases.length > 0) {
+          await supabase
+            .from('practice_items')
+            .insert(
+              newPhrases.map((phrase) => ({
+                user_id: user.id,
+                item_type: 'phrase',
+                text: phrase,
+                target_skill: 'clarity',
+              }))
+            );
+        }
+      } catch {
+        // Bonus feature, don't fail the attempt over it.
+      }
+    }
+
+    if (feedback.suggestedPhrases && feedback.suggestedPhrases.length > 0) {
+      try {
+        const itemType = category || 'presentation';
+        const { data: existing } = await supabase
+          .from('practice_items')
+          .select('text')
+          .eq('user_id', user.id)
+          .eq('item_type', itemType)
+          .in('text', feedback.suggestedPhrases.map((p) => p.toLowerCase()));
+        const existingSet = new Set((existing ?? []).map((r) => r.text.toLowerCase()));
+        const newPhrases = feedback.suggestedPhrases.filter(
+          (p) => !existingSet.has(p.toLowerCase())
+        );
+        if (newPhrases.length > 0) {
+          await supabase
+            .from('practice_items')
+            .insert(
+              newPhrases.map((phrase) => ({
+                user_id: user.id,
+                item_type: itemType,
+                text: phrase,
+                target_skill: itemType === 'presentation' ? 'clarity' : itemType === 'pitch' ? 'tone' : 'clarity',
+              }))
+            );
+        }
+      } catch {
+        // Bonus feature, don't fail the attempt over it.
+      }
+    }
+
     return NextResponse.json({ ...feedback, improved, visual });
   } catch (err) {
     console.error('[practice/attempt]', err);

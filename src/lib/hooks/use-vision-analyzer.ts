@@ -46,6 +46,7 @@ export function useVisionAnalyzer(): VisionAnalyzer {
   const lastTsRef = useRef(0);
   const tickRef = useRef(0);
   const lastHandResultRef = useRef<HandLandmarkerResult | null>(null);
+  const readinessStableCountRef = useRef(0);
 
   const load = useCallback(async () => {
     try {
@@ -121,9 +122,15 @@ export function useVisionAnalyzer(): VisionAnalyzer {
             prev.faceVisible === newReadiness.faceVisible &&
             prev.lightingOk === newReadiness.lightingOk
           ) {
+            readinessStableCountRef.current = 0;
             return prev;
           }
-          return newReadiness;
+          readinessStableCountRef.current += 1;
+          if (readinessStableCountRef.current >= 2) {
+            readinessStableCountRef.current = 0;
+            return newReadiness;
+          }
+          return prev;
         });
       } catch {
         // Skip a bad frame, never throw out of the loop.
