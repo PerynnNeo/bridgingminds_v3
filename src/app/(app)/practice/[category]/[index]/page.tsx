@@ -31,7 +31,7 @@ async function getItems(def: ReturnType<typeof getCategory>): Promise<PracticeTa
     .from('practice_items')
     .select('id, text, target_skill')
     .eq('user_id', user.id)
-    .or('item_type.eq.word,target_skill.eq.pronunciation')
+    .eq('item_type', def.slug)
     .order('created_at', { ascending: true });
 
   const personalized: PracticeTarget[] = (rows ?? []).map((r) => ({
@@ -40,10 +40,21 @@ async function getItems(def: ReturnType<typeof getCategory>): Promise<PracticeTa
     targetSkill: r.target_skill ?? def.targetSkill,
   }));
   const seen = new Set(personalized.map((p) => p.text.toLowerCase()));
-  const fallback = PRONUNCIATION_FALLBACK.filter((w) => !seen.has(w.toLowerCase())).map((w) => ({
-    text: w,
-    targetSkill: def.targetSkill,
-  }));
+  
+  // Add fallback library items (only for pronunciation category).
+  let fallback: PracticeTarget[] = [];
+  if (def.slug === 'pronunciation') {
+    fallback = PRONUNCIATION_FALLBACK.filter((w) => !seen.has(w.toLowerCase())).map((w) => ({
+      text: w,
+      targetSkill: def.targetSkill,
+    }));
+  } else {
+    // For other categories, use the library items if available.
+    fallback = getLibraryItems(def.slug).filter(
+      (item) => !seen.has(item.text.toLowerCase()),
+    );
+  }
+  
   return [...personalized, ...fallback].slice(0, 12);
 }
 

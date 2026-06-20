@@ -199,11 +199,7 @@ export async function POST(req: Request) {
     }
 
     // Add useful phrases and suggested phrases to personalized practice (best-effort).
-    const phrasesToAdd = [
-      ...(feedback.usefulPhrases ?? []),
-      ...(feedback.suggestedPhrases ?? []),
-    ];
-    if (phrasesToAdd.length > 0) {
+    if (feedback.usefulPhrases && feedback.usefulPhrases.length > 0) {
       try {
         const { data: existing } = await supabase
           .from('practice_items')
@@ -212,10 +208,10 @@ export async function POST(req: Request) {
           .eq('item_type', 'phrase')
           .in(
             'text',
-            phrasesToAdd.map((p) => p.toLowerCase()),
+            feedback.usefulPhrases.map((p) => p.toLowerCase()),
           );
         const existingSet = new Set((existing ?? []).map((r) => r.text.toLowerCase()));
-        const newPhrases = phrasesToAdd.filter(
+        const newPhrases = feedback.usefulPhrases.filter(
           (p) => !existingSet.has(p.toLowerCase()),
         );
         if (newPhrases.length > 0) {
@@ -227,6 +223,40 @@ export async function POST(req: Request) {
                 item_type: 'phrase',
                 text: phrase,
                 target_skill: 'clarity',
+              })),
+            );
+        }
+      } catch {
+        // Adding phrases is a bonus, never fail the attempt over it.
+      }
+    }
+
+    // Add suggested phrases to the specific practice category (e.g., presentation).
+    if (feedback.suggestedPhrases && feedback.suggestedPhrases.length > 0) {
+      try {
+        const itemType = category || 'presentation';
+        const { data: existing } = await supabase
+          .from('practice_items')
+          .select('text')
+          .eq('user_id', user.id)
+          .eq('item_type', itemType)
+          .in(
+            'text',
+            feedback.suggestedPhrases.map((p) => p.toLowerCase()),
+          );
+        const existingSet = new Set((existing ?? []).map((r) => r.text.toLowerCase()));
+        const newPhrases = feedback.suggestedPhrases.filter(
+          (p) => !existingSet.has(p.toLowerCase()),
+        );
+        if (newPhrases.length > 0) {
+          await supabase
+            .from('practice_items')
+            .insert(
+              newPhrases.map((phrase) => ({
+                user_id: user.id,
+                item_type: itemType,
+                text: phrase,
+                target_skill: itemType === 'presentation' ? 'clarity' : itemType === 'pitch' ? 'tone' : 'clarity',
               })),
             );
         }
