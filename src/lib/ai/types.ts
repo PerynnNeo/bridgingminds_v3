@@ -65,6 +65,8 @@ export interface AttemptFeedback {
   feedback: string;
   /** One concrete improvement tip. */
   tip: string;
+  /** Specific words or sounds that were mispronounced. */
+  mispronunciations: string[];
 }
 
 /** A single generated practice item (maps to `practice_items`). */

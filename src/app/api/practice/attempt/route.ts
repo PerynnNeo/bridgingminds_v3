@@ -165,6 +165,39 @@ export async function POST(req: Request) {
       });
     }
 
+    // Add mispronounced words to personalized practice (best-effort).
+    if (feedback.mispronunciations && feedback.mispronunciations.length > 0) {
+      try {
+        const { data: existing } = await supabase
+          .from('practice_items')
+          .select('text')
+          .eq('user_id', user.id)
+          .eq('item_type', 'word')
+          .in(
+            'text',
+            feedback.mispronunciations.map((w) => w.toLowerCase()),
+          );
+        const existingSet = new Set((existing ?? []).map((r) => r.text.toLowerCase()));
+        const newWords = feedback.mispronunciations.filter(
+          (w) => !existingSet.has(w.toLowerCase()),
+        );
+        if (newWords.length > 0) {
+          await supabase
+            .from('practice_items')
+            .insert(
+              newWords.map((word) => ({
+                user_id: user.id,
+                item_type: 'word',
+                text: word,
+                target_skill: 'pronunciation',
+              })),
+            );
+        }
+      } catch {
+        // Adding mispronounced words is a bonus, never fail the attempt over it.
+      }
+    }
+
     return NextResponse.json({ ...feedback, improved, visual });
   } catch (err) {
     console.error('[practice/attempt]', err);
