@@ -54,11 +54,18 @@ const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve,
 /** A transient, worth-retrying failure: a dropped connection, overload, rate limit, or any 5xx. */
 function isTransient(err: unknown): boolean {
   if (err instanceof Anthropic.APIConnectionError) return true;
-  const status = (err as { status?: number } | null)?.status;
-  return (
+  const e = err as { status?: number; type?: string } | null;
+  const status = e?.status;
+  if (
     typeof status === 'number' &&
     (status === 408 || status === 409 || status === 429 || status >= 500)
-  );
+  ) {
+    return true;
+  }
+  // Streamed errors arrive over a 200 event-stream, so `status` is undefined.
+  // Fall back to the error `type` the API reports inside the stream.
+  const type = e?.type;
+  return type === 'overloaded_error' || type === 'api_error' || type === 'rate_limit_error';
 }
 
 /**
