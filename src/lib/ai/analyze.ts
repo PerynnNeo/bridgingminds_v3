@@ -123,6 +123,9 @@ export async function generateOnboardingAnalysis(
     system: SYSTEM,
     user: JSON.stringify(input, null, 2),
     schema: SCHEMA,
-    maxTokens: 8000,
+    // Generous headroom: adaptive thinking shares this budget with the JSON
+    // output (full profile + 8 to 10 plan items), so a tight cap risks
+    // truncation. Streaming keeps the longer generation under the timeout.
+    maxTokens: 16000,
   });
 }

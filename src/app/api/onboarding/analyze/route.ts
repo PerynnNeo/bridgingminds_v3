@@ -17,7 +17,9 @@ import type { VisualMetrics } from '@/lib/vision/types';
 import type { Json } from '@/types/database';
 
 export const runtime = 'nodejs';
-export const maxDuration = 60;
+// Onboarding is the heaviest AI call (Opus + adaptive thinking + retries/fallback).
+// Allow more wall-clock on plans that support it. Vercel Hobby still caps at 60s.
+export const maxDuration = 120;
 
 export async function POST(req: Request) {
   const supabase = await createClient();
