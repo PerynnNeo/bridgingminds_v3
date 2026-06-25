@@ -119,7 +119,7 @@ export async function generateOnboardingAnalysis(
 ): Promise<OnboardingAnalysis> {
   return generateStructured<OnboardingAnalysis>({
     tier: 'fast',
-    thinking: true,
+    // Haiku does not support adaptive thinking, so it stays off here.
     system: SYSTEM,
     user: JSON.stringify(input, null, 2),
     schema: SCHEMA,
