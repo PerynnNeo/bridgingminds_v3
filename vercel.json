@@ -4,7 +4,7 @@
       "maxDuration": 300
     },
     "src/app/api/onboarding/analyze/route.ts": {
-      "maxDuration": 1800
+      "maxDuration": 300
     }
   }
 }
