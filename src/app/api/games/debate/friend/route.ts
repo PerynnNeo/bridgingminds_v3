@@ -7,7 +7,7 @@ import { updateDailyMetrics } from '@/lib/metrics/dashboard';
 import { getPlanLimits } from '@/lib/billing/plan';
 
 export const runtime = 'nodejs';
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 export async function POST(req: Request) {
   const supabase = await createClient();

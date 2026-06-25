@@ -18,8 +18,9 @@ import type { Json } from '@/types/database';
 
 export const runtime = 'nodejs';
 // Onboarding is the heaviest AI call (Opus + adaptive thinking + retries/fallback).
-// Allow more wall-clock on plans that support it. Vercel Hobby still caps at 60s.
-export const maxDuration = 120;
+// 1800s (30 min) is the per-function ceiling the plan allows. It must be set
+// per function, since the project-level default maxes at 800s during the beta.
+export const maxDuration = 1800;
 
 export async function POST(req: Request) {
   const supabase = await createClient();

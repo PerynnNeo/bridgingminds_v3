@@ -15,7 +15,7 @@ import { generateVisualFeedback, type VisualFeedbackResult } from '@/lib/ai/visu
 import type { Json } from '@/types/database';
 
 export const runtime = 'nodejs';
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 export async function POST(req: Request) {
   const supabase = await createClient();
