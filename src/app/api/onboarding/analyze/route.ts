@@ -17,10 +17,9 @@ import type { VisualMetrics } from '@/lib/vision/types';
 import type { Json } from '@/types/database';
 
 export const runtime = 'nodejs';
-// Onboarding is the heaviest AI call (Opus + adaptive thinking + retries/fallback).
-// 1800s (30 min) is the per-function ceiling the plan allows. It must be set
-// per function, since the project-level default maxes at 800s during the beta.
-export const maxDuration = 1800;
+// Hobby plan caps serverless functions at 120s. The analysis itself is
+// time-budgeted in src/lib/ai/analyze.ts to finish well inside this.
+export const maxDuration = 120;
 
 export async function POST(req: Request) {
   const supabase = await createClient();
@@ -81,7 +80,7 @@ export async function POST(req: Request) {
     // Deterministic reading fidelity (reliably catches skipped / mixed-up words).
     const readingFidelity = analyzeReading(readingText, readingT.text);
 
-    // Generate the speech profile + personalised plan (Claude Opus, adaptive thinking).
+    // Generate the speech profile + personalised plan (Claude Haiku, adaptive thinking).
     const { profile, plan } = await generateOnboardingAnalysis({
       readingTranscript: readingT.text,
       rapidAnswerTranscript: rapidT.text,
@@ -105,10 +104,10 @@ export async function POST(req: Request) {
     let visualResponse: { summary: string; metrics: VisualMetrics } | null = null;
     if (baseline && hasEnoughVisualData(baseline)) {
       try {
-        const vb = await generateVisualBaseline({
-          metrics: baseline,
-          speechSummary: profile.generatedSummary,
-        });
+        const vb = await generateVisualBaseline(
+          { metrics: baseline, speechSummary: profile.generatedSummary },
+          { budgetMs: 15000 },
+        );
         visualSummary = vb.summary;
         visualResponse = { summary: vb.summary, metrics: baseline };
       } catch {

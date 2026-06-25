@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server';
 import { getUserPlan } from '@/lib/billing/plan';
 
 export const runtime = 'nodejs';
-export const maxDuration = 300;
+export const maxDuration = 120;
 
 // ElevenLabs "Adam", a clear confident male voice. Override with ELEVENLABS_VOICE_ID.
 const DEFAULT_VOICE_ID = 'pNInz6obpgDQGcFmaJgB';

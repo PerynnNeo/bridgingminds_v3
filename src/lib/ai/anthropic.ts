@@ -19,9 +19,9 @@ export const CLAUDE_MODELS = {
 export type ClaudeTier = keyof typeof CLAUDE_MODELS;
 
 /**
- * If the primary model keeps returning server errors, retry once on this
- * faster, broadly available model so a transient Anthropic outage never
- * hard-fails the request. (Skipped when it is already the primary.)
+ * If the primary model is slow or erroring, fall back to this faster, broadly
+ * available model so a single hiccup neither fails nor stalls the request.
+ * (Skipped when it is already the primary.)
  */
 const FALLBACK_MODEL: string = 'claude-sonnet-4-6';
 
@@ -47,12 +47,26 @@ interface StructuredOptions {
   maxTokens?: number;
   /** Enable adaptive thinking (use for complex analysis). */
   thinking?: boolean;
+  /** Hard cap on each model attempt, in ms. A call that runs longer is aborted. */
+  timeoutMs?: number;
+  /** Total wall-clock budget across all attempts, in ms. Stops retrying once spent. */
+  budgetMs?: number;
 }
 
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
-/** A transient, worth-retrying failure: a dropped connection, overload, rate limit, or any 5xx. */
+/** Marks an attempt we aborted ourselves because it exceeded its time budget. */
+class AttemptTimeout extends Error {
+  constructor() {
+    super('Attempt exceeded its time budget');
+    this.name = 'AttemptTimeout';
+  }
+}
+
+/** A transient failure worth retrying or falling back on: our own timeout, a
+ *  dropped connection, an overload, a rate limit, or any 5xx. */
 function isTransient(err: unknown): boolean {
+  if (err instanceof AttemptTimeout) return true;
   if (err instanceof Anthropic.APIConnectionError) return true;
   const e = err as { status?: number; type?: string } | null;
   const status = e?.status;
@@ -72,9 +86,10 @@ function isTransient(err: unknown): boolean {
  * Ask Claude for JSON constrained to a schema (API-level structured outputs),
  * and return it parsed. The system prompt is sent as a cached block.
  *
- * The call is streamed (robust against long, adaptive-thinking generations and
- * request timeouts), retried once on a transient server error, then retried on
- * a fallback model so a single upstream hiccup never fails the whole request.
+ * Each attempt is streamed and hard-bounded by an abort timeout; if it is slow
+ * or hits a transient error, we fall back to a faster model. With `budgetMs` set
+ * the whole call is kept under that wall-clock budget (used on latency-sensitive
+ * paths like onboarding, where the serverless function timeout is tight).
  */
 export async function generateStructured<T>({
   tier = 'default',
@@ -83,43 +98,74 @@ export async function generateStructured<T>({
   schema,
   maxTokens = 4096,
   thinking = false,
+  timeoutMs = 30000,
+  budgetMs,
 }: StructuredOptions): Promise<T> {
   const anthropic = getAnthropic();
   const primary = CLAUDE_MODELS[tier];
+  const startedAt = Date.now();
+  const remaining = () =>
+    budgetMs == null ? Number.POSITIVE_INFINITY : Math.max(0, budgetMs - (Date.now() - startedAt));
 
-  // One streamed attempt against a given model. Returns the joined text output.
-  async function run(model: string): Promise<string> {
-    const stream = anthropic.messages.stream({
-      model,
-      max_tokens: maxTokens,
-      system: [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }],
-      messages: [{ role: 'user', content: user }],
-      output_config: { format: { type: 'json_schema', schema } },
-      ...(thinking ? { thinking: { type: 'adaptive' as const } } : {}),
+  // One streamed attempt, aborted if it runs past `perAttemptMs`.
+  async function run(model: string, perAttemptMs: number): Promise<string> {
+    const controller = new AbortController();
+    const stream = anthropic.messages.stream(
+      {
+        model,
+        max_tokens: maxTokens,
+        system: [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }],
+        messages: [{ role: 'user', content: user }],
+        output_config: { format: { type: 'json_schema', schema } },
+        ...(thinking ? { thinking: { type: 'adaptive' as const } } : {}),
+      },
+      { signal: controller.signal, maxRetries: 0 },
+    );
+    const final = stream.finalMessage();
+    final.catch(() => {}); // swallow the post-abort rejection if the timeout wins the race
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timeout = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => {
+        controller.abort();
+        reject(new AttemptTimeout());
+      }, perAttemptMs);
     });
-    const message = await stream.finalMessage();
-    return message.content
-      .map((b) => (b.type === 'text' ? b.text : ''))
-      .join('')
-      .trim();
+    try {
+      const message = await Promise.race([final, timeout]);
+      return message.content
+        .map((b) => (b.type === 'text' ? b.text : ''))
+        .join('')
+        .trim();
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
   }
 
-  // Primary twice (transient 500s usually clear), then the fallback model once.
+  // Budgeted (latency-sensitive) paths: primary once, then the faster fallback.
+  // Otherwise favour resilience: primary twice, then the fallback.
   const attempts =
-    FALLBACK_MODEL !== primary ? [primary, primary, FALLBACK_MODEL] : [primary, primary];
+    budgetMs != null
+      ? FALLBACK_MODEL !== primary
+        ? [primary, FALLBACK_MODEL]
+        : [primary]
+      : FALLBACK_MODEL !== primary
+        ? [primary, primary, FALLBACK_MODEL]
+        : [primary, primary];
 
   let text = '';
   for (let i = 0; i < attempts.length; i++) {
+    const left = remaining();
+    if (i > 0 && left < 8000) break; // not enough budget left for another attempt
+    const perAttempt = Math.max(8000, Math.min(timeoutMs, left));
     try {
-      text = await run(attempts[i]);
+      text = await run(attempts[i], perAttempt);
       break;
     } catch (err) {
       const lastAttempt = i === attempts.length - 1;
-      // Only retry/fall back on transient failures; surface real errors immediately.
-      if (lastAttempt || !isTransient(err)) throw err;
-      const status = (err as { status?: number } | null)?.status ?? 'conn';
-      console.warn(`[ai] ${attempts[i]} attempt ${i + 1} failed (${status}), retrying`);
-      await sleep(500 * (i + 1));
+      // Only fall back on transient/timeout failures; surface real errors at once.
+      if (lastAttempt || !isTransient(err) || remaining() < 8000) throw err;
+      console.warn(`[ai] ${attempts[i]} attempt ${i + 1} failed, falling back`);
+      await sleep(Math.min(400, remaining()));
     }
   }
 

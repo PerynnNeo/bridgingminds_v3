@@ -113,19 +113,21 @@ export interface OnboardingInput {
   };
 }
 
-/** Generate the user's first speech profile + personalised practice plan (Opus + adaptive thinking). */
+/** Generate the user's first speech profile + personalised practice plan (Haiku, fast & cheap). */
 export async function generateOnboardingAnalysis(
   input: OnboardingInput,
 ): Promise<OnboardingAnalysis> {
   return generateStructured<OnboardingAnalysis>({
-    tier: 'deep',
+    tier: 'fast',
     thinking: true,
     system: SYSTEM,
     user: JSON.stringify(input, null, 2),
     schema: SCHEMA,
-    // Generous headroom: adaptive thinking shares this budget with the JSON
-    // output (full profile + 8 to 10 plan items), so a tight cap risks
-    // truncation. Streaming keeps the longer generation under the timeout.
-    maxTokens: 16000,
+    maxTokens: 8000,
+    // Hard time bounds so the profile fits the function timeout (Hobby caps at
+    // 120s). Try Haiku for up to 30s, then fall back to Sonnet, keeping the whole
+    // analysis well under budget and leaving room for transcription + writes.
+    timeoutMs: 30000,
+    budgetMs: 45000,
   });
 }

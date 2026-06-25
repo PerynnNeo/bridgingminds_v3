@@ -86,11 +86,14 @@ Same hard safety rules apply:
 
 Mention one thing that looks good and the single biggest thing to work on. Never cite raw numbers, use plain words. Friendly and plain, not clinical. Do not join clauses with any dash (no em dash, en dash, or hyphen used as a dash); use a comma or a full stop. Return ONLY JSON with a "summary" string.`;
 
-export async function generateVisualBaseline(input: {
-  metrics: VisualMetrics;
-  /** Optional one-line summary of their speech profile, for a cohesive baseline. */
-  speechSummary?: string;
-}): Promise<{ summary: string }> {
+export async function generateVisualBaseline(
+  input: {
+    metrics: VisualMetrics;
+    /** Optional one-line summary of their speech profile, for a cohesive baseline. */
+    speechSummary?: string;
+  },
+  opts?: { timeoutMs?: number; budgetMs?: number },
+): Promise<{ summary: string }> {
   return generateStructured<{ summary: string }>({
     tier: 'fast',
     system: BASELINE_SYSTEM,
@@ -102,5 +105,7 @@ export async function generateVisualBaseline(input: {
       required: ['summary'],
     },
     maxTokens: 400,
+    timeoutMs: opts?.timeoutMs,
+    budgetMs: opts?.budgetMs,
   });
 }
